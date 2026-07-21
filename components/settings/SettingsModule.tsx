@@ -429,11 +429,14 @@ function AutomationSection() {
 
 function NotificationsSection() {
   const tr = useTr();
+  const { locale } = useI18n();
+  const L = (o: { en: string; th: string }) => (locale === "th" ? o.th : o.en);
   const [s, setS] = usePersist("factoryos:notify", {
     email: true, emailAddr: "ops@factory.co.th", line: true, lineId: "@sparex-plant",
-    push: true, sms: false, phone: "",
-    peak: true, pq: true, anomaly: true, failure: true,
+    push: true,
+    peak: true, peakPct: 90, pq: true, anomaly: true, failure: true,
     quiet: false, quietFrom: "22:00", quietTo: "06:00",
+    esc: true, escMin: 15, escFirst: "Somchai P. (Engineer)", escTo: "Chanachon T. (Admin)",
   });
   const upd = (patch: Partial<typeof s>) => setS((p) => ({ ...p, ...patch }));
   const channel = (on: boolean, key: any, icon: any, name: string, right: ReactNode) => {
@@ -447,10 +450,11 @@ function NotificationsSection() {
     );
   };
   const smallInput = (v: string, on: (x: string) => void, ph: string) => <input value={v} onChange={(e) => on(e.target.value)} placeholder={ph} className="w-44 rounded-md border border-white/10 bg-white/[0.02] px-2 py-1 text-xs text-white/80 placeholder:text-white/25 focus:outline-none" />;
-  const alertRow = (on: boolean, key: any, label: string) => (
-    <div className="flex items-center gap-3 rounded-xl border border-white/8 bg-white/[0.02] p-3">
+  const alertRow = (on: boolean, key: any, label: string, right?: ReactNode) => (
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/8 bg-white/[0.02] p-3">
       <Bell size={15} className={cn("shrink-0", on ? "text-brand-300" : "text-white/30")} />
       <span className="flex-1 text-sm text-white/75">{label}</span>
+      {on && right ? right : null}
       <Toggle on={on} onClick={() => upd({ [key]: !on } as any)} />
     </div>
   );
@@ -462,17 +466,45 @@ function NotificationsSection() {
           {channel(s.email, "email", Mail, "Email", smallInput(s.emailAddr, (x) => upd({ emailAddr: x }), "name@company.com"))}
           {channel(s.line, "line", MessageSquare, "LINE", smallInput(s.lineId, (x) => upd({ lineId: x }), "@line-oa"))}
           {channel(s.push, "push", MonitorSmartphone, tr("Browser push"), null)}
-          {channel(s.sms, "sms", Smartphone, "SMS", smallInput(s.phone, (x) => upd({ phone: x }), "0x-xxx-xxxx"))}
         </div>
       </Card>
 
       <Card icon={Bell} title={tr("Alert Me About")} subtitle={tr("Which events trigger a notification.")}>
         <div className="grid gap-3 sm:grid-cols-2">
-          {alertRow(s.peak, "peak", tr("Peak demand breach"))}
+          {alertRow(s.peak, "peak", tr("Peak demand breach"), (
+            <span className="flex items-center gap-1 text-[11px] text-white/45">
+              {L({ en: "when over", th: "เมื่อเกิน" })}
+              <input type="number" min={50} max={100} value={s.peakPct} onChange={(e) => upd({ peakPct: Math.max(50, Math.min(100, Number(e.target.value) || 90)) })}
+                className="w-14 rounded-md border border-white/10 bg-white/[0.02] px-1.5 py-1 text-center tabular text-xs text-white/85 focus:outline-none" />
+              % {L({ en: "of contract", th: "ของสัญญา" })}
+            </span>
+          ))}
           {alertRow(s.pq, "pq", tr("Power-quality events (sag/swell)"))}
           {alertRow(s.anomaly, "anomaly", tr("Energy anomalies"))}
           {alertRow(s.failure, "failure", tr("Equipment failure risk"))}
         </div>
+      </Card>
+
+      <Card
+        icon={ShieldCheck}
+        title={L({ en: "Escalation", th: "ส่งต่อเมื่อไม่มีคนรับเรื่อง" })}
+        subtitle={L({ en: "Who gets it first, and who gets it if no one acknowledges", th: "แจ้งใครก่อน และถ้าไม่มีใครกดรับจะส่งต่อใคร" })}
+        extra={<Toggle on={s.esc} onClick={() => upd({ esc: !s.esc })} />}
+      >
+        <div className={cn("flex flex-wrap items-center gap-2 text-sm transition", s.esc ? "opacity-100" : "opacity-40")}>
+          <span className="text-white/55">{L({ en: "Alert", th: "แจ้ง" })}</span>
+          <select value={s.escFirst} onChange={(e) => upd({ escFirst: e.target.value })} className="rounded-lg border border-white/10 bg-ink-900 px-2.5 py-1.5 text-[13px] text-white/85 focus:outline-none">
+            {SEED_USERS.filter((u) => u.active).map((u) => <option key={u.id}>{`${u.name} (${u.role})`}</option>)}
+          </select>
+          <span className="text-white/55">{L({ en: "first — if not acknowledged within", th: "ก่อน — ถ้าไม่กดรับภายใน" })}</span>
+          <input type="number" min={5} max={120} value={s.escMin} onChange={(e) => upd({ escMin: Math.max(5, Math.min(120, Number(e.target.value) || 15)) })}
+            className="w-16 rounded-lg border border-white/10 bg-white/[0.02] px-2 py-1.5 text-center tabular text-[13px] text-white/90 focus:outline-none" />
+          <span className="text-white/55">{L({ en: "min, escalate to", th: "นาที ส่งต่อ" })}</span>
+          <select value={s.escTo} onChange={(e) => upd({ escTo: e.target.value })} className="rounded-lg border border-white/10 bg-ink-900 px-2.5 py-1.5 text-[13px] text-white/85 focus:outline-none">
+            {SEED_USERS.filter((u) => u.active).map((u) => <option key={u.id}>{`${u.name} (${u.role})`}</option>)}
+          </select>
+        </div>
+        <p className="mt-2.5 text-[11px] text-white/40">{L({ en: "Applies to critical alerts (failure risk, peak breach). Routine info never escalates.", th: "ใช้กับเรื่องวิกฤต (เสี่ยงเครื่องเสีย, ไฟเกินสัญญา) — เรื่องทั่วไปไม่ส่งต่อ" })}</p>
       </Card>
 
       <Card icon={Clock} title={tr("Quiet Hours")} subtitle={tr("Hold non-critical alerts during these hours.")}
