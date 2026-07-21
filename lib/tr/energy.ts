@@ -594,6 +594,7 @@ export const energyDict: TrDict = {
   "Asset ID": { th: "Asset ID", ja: "資産ID", zh: "资产 ID" },
   /* settings — sections */
   "Machines & assets": { th: "เครื่องจักร & สินทรัพย์", ja: "機器・資産", zh: "机器与资产" },
+  "Data source · Connect": { th: "แหล่งข้อมูล · Connect", ja: "データソース · Connect", zh: "数据源 · Connect" },
   "Tariff & billing": { th: "ค่าไฟ & การเรียกเก็บ", ja: "料金・請求", zh: "电价与账单" },
   "AI & automation": { th: "AI & ระบบอัตโนมัติ", ja: "AI・自動化", zh: "AI 与自动化" },
   "Notifications": { th: "การแจ้งเตือน", ja: "通知", zh: "通知" },

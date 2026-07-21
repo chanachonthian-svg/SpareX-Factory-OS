@@ -4,9 +4,10 @@ import { useState, useEffect, useRef, type ReactNode } from "react";
 import {
   Shield, ShieldOff, Search, Factory, Zap, RotateCcw, Coins, Sparkles, Bell,
   Users, ShieldCheck, Mail, MessageSquare, Smartphone, MonitorSmartphone, Check, Clock,
-  Building2, Upload, Trash2, FileText,
+  Building2, Upload, Trash2, FileText, Cable, ExternalLink, CircleDot,
 } from "lucide-react";
 import { assets, STATUS_COLOR, STATUS_LABEL, type Asset } from "@/lib/factory";
+import { loadLayout, toAssets } from "@/lib/twin-builder";
 import { tariff } from "@/lib/energy";
 import { useBrand, setBrand } from "@/lib/brand";
 import { useI18n } from "@/lib/i18n";
@@ -71,6 +72,126 @@ function usePersist<T>(key: string, init: T): [T, React.Dispatch<React.SetStateA
   }, []); // eslint-disable-line
   useEffect(() => { if (ready) try { localStorage.setItem(key, JSON.stringify(v)); } catch {} }, [v, ready]); // eslint-disable-line
   return [v, setV, ready];
+}
+
+/* --------------------------------------- 0 · data source (SpareX Connect) */
+/* FactoryOS does not configure devices — SpareX Connect owns protocols and raw
+ * data. This tab shows the link's health and maps each Connect device onto a
+ * FactoryOS machine; unmapped machines run on kVA-based simulation instead. */
+
+const DMKEY = "factoryos:device-map";
+
+const CONNECT_DEVICES = [
+  { id: "MTR-001", label: "Power meter · Incomer MDB", proto: "Modbus TCP", ok: true },
+  { id: "MTR-002", label: "Power meter · Welding feeder", proto: "Modbus TCP", ok: true },
+  { id: "MTR-003", label: "Power meter · Press feeder", proto: "Modbus TCP", ok: true },
+  { id: "MTR-004", label: "Power meter · Facility feeder", proto: "Modbus TCP", ok: true },
+  { id: "PLC-A", label: "PLC · Line A (Siemens S7-1200)", proto: "OPC-UA", ok: true },
+  { id: "PLC-B", label: "PLC · Line B (Mitsubishi FX5U)", proto: "SLMP", ok: true },
+  { id: "VIB-001", label: "Vibration sensor · CNC spindle", proto: "MQTT", ok: true },
+  { id: "VIB-002", label: "Vibration sensor · press crown", proto: "MQTT", ok: false },
+  { id: "TMP-001", label: "Temp probe · furnace zone", proto: "MQTT", ok: true },
+  { id: "AIR-001", label: "Flow meter · compressed air", proto: "Modbus RTU", ok: true },
+];
+
+function ConnectSection() {
+  const { locale } = useI18n();
+  const L = (o: { en: string; th: string }) => (locale === "th" ? o.th : o.en);
+  const [map, setMap] = usePersist<Record<string, string>>(DMKEY, {});
+  const [machines, setMachines] = useState<{ id: string; name: string; type: string }[]>([]);
+  useEffect(() => {
+    const l = loadLayout();
+    const list = l?.active && l.machines.length ? toAssets(l) : assets;
+    setMachines(list.map((a) => ({ id: a.id, name: a.name, type: a.type })));
+  }, []);
+
+  const okDevices = CONNECT_DEVICES.filter((d) => d.ok).length;
+  const mapped = machines.filter((m) => map[m.id]).length;
+  const deviceUse = new Map<string, number>();
+  Object.values(map).forEach((d) => deviceUse.set(d, (deviceUse.get(d) ?? 0) + 1));
+
+  return (
+    <div className="space-y-4">
+      {/* link health */}
+      <Card
+        title={L({ en: "SpareX Connect link", th: "การเชื่อมต่อ SpareX Connect" })}
+        subtitle={L({ en: "Is real plant data flowing in", th: "ข้อมูลจริงจากโรงงานไหลเข้าอยู่มั้ย" })}
+        icon={Cable}
+        extra={
+          <a href="https://sparexth.com/connect" target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-lg border border-brand-400/30 bg-brand-400/[0.08] px-3 py-1.5 text-xs font-medium text-brand-200 transition hover:bg-brand-400/[0.15]">
+            {L({ en: "Manage devices in Connect", th: "จัดการอุปกรณ์ใน Connect" })} <ExternalLink size={12} />
+          </a>
+        }
+      >
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[
+            { label: L({ en: "Status", th: "สถานะ" }), value: L({ en: "Online", th: "ออนไลน์" }), tone: "#34d399", dot: true },
+            { label: L({ en: "Last data in", th: "ข้อมูลล่าสุดเข้า" }), value: L({ en: "moments ago", th: "เมื่อครู่" }), tone: "#e2e8f0" },
+            { label: L({ en: "Devices reporting", th: "อุปกรณ์ส่งปกติ" }), value: `${okDevices}/${CONNECT_DEVICES.length}`, tone: okDevices === CONNECT_DEVICES.length ? "#34d399" : "#f59e0b" },
+            { label: L({ en: "Machines on real data", th: "เครื่องที่ใช้ข้อมูลจริง" }), value: `${mapped}/${machines.length}`, tone: mapped ? "#22d3ee" : "#8b93a7" },
+          ].map((s) => (
+            <div key={s.label} className="rounded-xl border border-white/8 bg-white/[0.02] p-3.5">
+              <p className="text-[11px] uppercase tracking-wider text-white/45">{s.label}</p>
+              <p className="mt-1 flex items-center gap-1.5 text-lg font-semibold tabular" style={{ color: s.tone }}>
+                {s.dot ? <CircleDot size={13} className="animate-pulse" /> : null}{s.value}
+              </p>
+            </div>
+          ))}
+        </div>
+        {CONNECT_DEVICES.some((d) => !d.ok) ? (
+          <p className="mt-3 rounded-lg border border-amber-400/25 bg-amber-400/[0.06] px-3 py-2 text-[12px] text-amber-200">
+            ⚠ {CONNECT_DEVICES.filter((d) => !d.ok).map((d) => d.id).join(", ")} {L({ en: "lost signal — check in SpareX Connect", th: "สัญญาณหาย — ไปตรวจใน SpareX Connect" })}
+          </p>
+        ) : null}
+      </Card>
+
+      {/* device ↔ machine mapping */}
+      <Card
+        title={L({ en: "Device ↔ machine mapping", th: "จับคู่อุปกรณ์ ↔ เครื่องจักร" })}
+        subtitle={L({ en: "Which meter feeds which machine's numbers", th: "มิเตอร์ตัวไหนป้อนตัวเลขให้เครื่องไหน" })}
+        icon={Factory}
+      >
+        <div className="max-h-[420px] space-y-1.5 overflow-y-auto pr-1">
+          {machines.map((m) => {
+            const dev = map[m.id];
+            const devObj = CONNECT_DEVICES.find((d) => d.id === dev);
+            return (
+              <div key={m.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-white/8 bg-white/[0.02] px-3 py-2">
+                <div className="min-w-[150px] flex-1">
+                  <p className="text-[13px] font-medium text-white/85">{m.name}</p>
+                  <p className="text-[10.5px] text-white/40">{m.type}</p>
+                </div>
+                <select
+                  value={dev ?? ""}
+                  onChange={(e) => setMap((p) => { const n = { ...p }; if (e.target.value) n[m.id] = e.target.value; else delete n[m.id]; return n; })}
+                  className="w-[240px] max-w-full rounded-lg border border-white/12 bg-ink-900 px-2 py-1.5 text-[12px] text-white/85 focus:border-brand-400/50 focus:outline-none"
+                >
+                  <option value="">{L({ en: "— simulated from kVA —", th: "— จำลองจาก kVA —" })}</option>
+                  {CONNECT_DEVICES.map((d) => (
+                    <option key={d.id} value={d.id}>{d.id} · {d.label} ({d.proto})</option>
+                  ))}
+                </select>
+                {dev ? (
+                  <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium", devObj?.ok ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300" : "border-rose-400/30 bg-rose-400/10 text-rose-300")}>
+                    {devObj?.ok ? L({ en: "real data", th: "ข้อมูลจริง" }) : L({ en: "no signal", th: "สัญญาณหาย" })}
+                    {(deviceUse.get(dev) ?? 0) > 1 ? ` · ${L({ en: "shared", th: "ใช้ร่วม" })}` : ""}
+                  </span>
+                ) : (
+                  <span className="shrink-0 rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] text-white/45">{L({ en: "simulated", th: "จำลอง" })}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <p className="mt-3 text-[11px] text-white/40">
+          {L({
+            en: "Machines without a device run on kVA-based simulation. One feeder meter may be shared by a whole zone.",
+            th: "เครื่องที่ยังไม่จับคู่จะใช้ค่าจำลองจาก kVA ไปก่อน · มิเตอร์ feeder หนึ่งตัวใช้ร่วมทั้งโซนได้",
+          })}
+        </p>
+      </Card>
+    </div>
+  );
 }
 
 /* ------------------------------------------------- 1 · machine criticality */
@@ -516,6 +637,7 @@ function BrandingSection() {
 }
 
 const SECTIONS = [
+  { k: "connect", icon: Cable, label: "Data source · Connect" },
   { k: "machines", icon: Shield, label: "Machines & assets" },
   { k: "tariff", icon: Coins, label: "Tariff & billing" },
   { k: "brand", icon: Building2, label: "Company & branding" },
@@ -526,7 +648,7 @@ const SECTIONS = [
 
 export function SettingsModule() {
   const tr = useTr();
-  const [section, setSection] = useState<(typeof SECTIONS)[number]["k"]>("machines");
+  const [section, setSection] = useState<(typeof SECTIONS)[number]["k"]>("connect");
 
   return (
     <div className="space-y-6">
@@ -545,6 +667,7 @@ export function SettingsModule() {
       </nav>
 
       <div className="min-w-0">
+        {section === "connect" && <ConnectSection />}
         {section === "machines" && <CriticalitySection />}
         {section === "tariff" && <TariffSection />}
         {section === "brand" && <BrandingSection />}
