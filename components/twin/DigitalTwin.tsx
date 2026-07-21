@@ -12,7 +12,7 @@ import {
 import * as THREE from "three";
 import type { Mesh, MeshStandardMaterial, Group } from "three";
 import { motion, useInView, useReducedMotion } from "framer-motion";
-import { MousePointerClick, Wrench, Check, Crown, Phone } from "lucide-react";
+import { MousePointerClick, Wrench, Check, Crown, Phone, Maximize2, Minimize2, Radar, Tags } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import {
   CREW, CREW_PHASES, CREW_OVERTIME, crewPhase, crewElapsedLabel, crewMember,
@@ -28,9 +28,11 @@ import {
   STATUS_HEX,
   STATUS_LABEL,
   CATEGORY_LABEL,
+  assetBurnPerHr,
   type Asset,
   type AssetStatus,
   type TwinLayer,
+  type Building,
 } from "@/lib/factory";
 import { cn } from "@/lib/utils";
 import { uibus } from "@/lib/uibus";
@@ -42,8 +44,13 @@ function carbonColor(co2: number) {
   return co2 > 50 ? "#f43f5e" : co2 > 30 ? "#f59e0b" : "#34d399";
 }
 
+function burnColor(bahtHr: number) {
+  return bahtHr >= 300 ? "#f43f5e" : bahtHr >= 90 ? "#f59e0b" : "#34d399";
+}
+
 function nodeColor(a: Asset, layer: TwinLayer) {
   if (layer === "carbon") return carbonColor(a.co2KgH);
+  if (layer === "cost") return burnColor(assetBurnPerHr(a));
   // STATUS_HEX, not STATUS_COLOR — THREE.Color cannot resolve CSS variables,
   // which silently rendered every machine white regardless of status
   return STATUS_HEX[a.status];
@@ -105,6 +112,29 @@ function BuildingBlock({ b }: { b: (typeof buildings)[number] }) {
    share ONE material per node, so the status-colour "breathing" emissive
    keeps working across the whole model. */
 
+/* ---------------------------------------------------- floating data labels */
+/* Per-machine data chips floating above the 3D model. The user picks which
+ * metrics float on which machine (per-machine override, else the default set);
+ * choices persist locally so a shop-floor TV keeps its labels after reboot. */
+export const FLOAT_METRICS: { id: string; label: string; fmt: (a: Asset) => string }[] = [
+  { id: "kw", label: "kW", fmt: (a) => `${a.powerKw} kW` },
+  { id: "temp", label: "°C", fmt: (a) => `${a.tempC}°C` },
+  { id: "vib", label: "mm/s", fmt: (a) => `${a.vibration} mm/s` },
+  { id: "oee", label: "OEE", fmt: (a) => `OEE ${a.oee}%` },
+  { id: "health", label: "Health", fmt: (a) => `HP ${a.health}%` },
+  { id: "burn", label: "฿/hr", fmt: (a) => `฿${assetBurnPerHr(a).toLocaleString()}/hr` },
+  { id: "co2", label: "CO₂", fmt: (a) => `${a.co2KgH} kg/h` },
+];
+type FloatCfg = { on: boolean; def: string[]; per: Record<string, string[]> };
+const FLOAT_KEY = "factoryos:float-info";
+const FLOAT_DEFAULT: FloatCfg = { on: true, def: ["kw", "temp"], per: {} };
+function loadFloatCfg(): FloatCfg {
+  try {
+    const c = JSON.parse(localStorage.getItem(FLOAT_KEY) || "");
+    return { on: c.on !== false, def: Array.isArray(c.def) ? c.def : FLOAT_DEFAULT.def, per: c.per ?? {} };
+  } catch { return FLOAT_DEFAULT; }
+}
+
 type MachineKind =
   | "cnc" | "weld" | "robot" | "qc" | "press" | "imm" | "assembly" | "paint" | "agv"
   | "chiller" | "compressor" | "boiler" | "mdb" | "coolingtower" | "pump" | "ahu" | "wwt" | "generic";
@@ -116,7 +146,12 @@ function machineKind(a: Asset): MachineKind {
   if (t.includes("robot")) return "robot";
   if (t.includes("vision")) return "qc";
   if (t.includes("press")) return "press";
+  if (t.includes("grinding")) return "cnc";
   if (t.includes("machining")) return "cnc";
+  if (t.includes("die casting")) return "imm";
+  if (t.includes("furnace")) return "boiler";
+  if (t.includes("conveyor")) return "assembly";
+  if (t.includes("transformer")) return "mdb";
   if (t.includes("imm") || t.includes("injection")) return "imm";
   if (t.includes("assembly")) return "assembly";
   if (t.includes("mobile")) return "agv";
@@ -340,11 +375,14 @@ function MachineNode({
   layer,
   selected,
   onSelect,
+  float,
 }: {
   a: Asset;
   layer: TwinLayer;
   selected: boolean;
   onSelect: (id: string) => void;
+  /** metric ids floating above this machine (undefined = feature off, [] = hidden) */
+  float?: string[];
 }) {
   const ringRef = useRef<Mesh>(null);
   const ringMat = useRef<MeshStandardMaterial>(null);
@@ -478,7 +516,19 @@ function MachineNode({
         </mesh>
       )}
 
-      {(selected || hovered) && (
+      {float?.length ? (
+        <Html position={[0, 0.86, 0]} center distanceFactor={9} occlude={false}>
+          <div className="pointer-events-none select-none whitespace-nowrap rounded-lg border border-white/15 bg-black/75 px-2 py-1 text-center backdrop-blur">
+            <p className="text-[9.5px] font-semibold leading-tight text-white">
+              <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle" style={{ backgroundColor: color }} />
+              {a.name}
+            </p>
+            <p className="tabular text-[9px] leading-tight text-cyan-200/90">
+              {FLOAT_METRICS.filter((m) => float.includes(m.id)).map((m) => m.fmt(a)).join(" · ")}
+            </p>
+          </div>
+        </Html>
+      ) : (selected || hovered) && (
         <Html position={[0, 0.72, 0]} center distanceFactor={9} occlude={false}>
           <div className="pointer-events-none select-none whitespace-nowrap rounded-full border border-white/20 bg-black/70 px-2.5 py-1 text-[10px] font-medium text-white backdrop-blur">
             <span
@@ -538,14 +588,48 @@ function Segment({ a, b, radius = 0.012, color, emissive, intensity = 0.5, opaci
   );
 }
 
-function FlowPulses({ active }: { active: boolean }) {
+/** SLD wiring for a user-authored layout. The user chooses the electrical
+ *  infrastructure from the library: no MDB placed → no wiring at all; pole
+ *  placed → the grid drop comes in from wherever the pole stands. Bus along X
+ *  through the MDB, right-angle feeder into every machine. */
+function buildCustomFlow(assetList: Asset[], pole?: { x: number; z: number } | null): { segs: FlowSeg[]; taps: { x: number; z: number }[]; hubX: number; hubZ: number; hasUserMdb: boolean } {
+  const mdb = assetList.find((a) => a.type.toLowerCase().includes("switchboard"));
+  const machines = assetList.filter((a) => !a.type.toLowerCase().includes("switchboard"));
+  const hubX = mdb?.x ?? MDB_X;
+  const hubZ = mdb?.z ?? BUS_Z;
+  if (!mdb || !machines.length) return { segs: [], taps: [], hubX, hubZ, hasUserMdb: !!mdb };
+  const minX = Math.min(...machines.map((m) => m.x), hubX);
+  const maxX = Math.max(...machines.map((m) => m.x), hubX);
+  const segs: FlowSeg[] = [
+    ...(pole
+      ? [
+          { a: new THREE.Vector3(pole.x, 1.95, pole.z), b: P(pole.x, pole.z), kind: "incoming" as FlowKind },
+          { a: P(pole.x, pole.z), b: P(pole.x, hubZ), kind: "incoming" as FlowKind },
+          { a: P(pole.x, hubZ), b: P(hubX, hubZ), kind: "incoming" as FlowKind },
+        ]
+      : []),
+    { a: P(hubX, hubZ), b: P(minX, hubZ), kind: "bus" },
+    { a: P(hubX, hubZ), b: P(maxX, hubZ), kind: "bus" },
+    ...machines.map((m) => ({ a: P(m.x, hubZ), b: P(m.x, m.z), kind: "feeder" as FlowKind })),
+  ];
+  return { segs, taps: machines.map((m) => ({ x: m.x, z: hubZ })), hubX, hubZ, hasUserMdb: true };
+}
+
+function FlowPulses({ active, assetList, custom, pole }: { active: boolean; assetList?: Asset[]; custom?: boolean; pole?: { x: number; z: number } | null }) {
   const group = useRef<Group>(null);
+  const { segs, taps } = useMemo(() => {
+    if (custom && assetList) {
+      const f = buildCustomFlow(assetList, pole);
+      return { segs: f.segs, taps: f.taps };
+    }
+    return { segs: FLOW_SEGMENTS, taps: FEEDERS.map((f) => ({ x: f.x, z: BUS_Z })) };
+  }, [custom, assetList, pole]);
   const pulses = useMemo(
     () =>
-      FLOW_SEGMENTS.flatMap((seg, si) =>
+      segs.flatMap((seg, si) =>
         [0, 0.33, 0.66].map((o) => ({ seg, offset: o, key: `${si}-${o}` })),
       ),
-    [],
+    [segs],
   );
   const refs = useRef<(Mesh | null)[]>([]);
 
@@ -566,7 +650,7 @@ function FlowPulses({ active }: { active: boolean }) {
   return (
     <group ref={group}>
       {/* static conductors — amber grid feed, thick cyan busbar, thin cyan feeders */}
-      {FLOW_SEGMENTS.map((seg, i) => (
+      {segs.map((seg, i) => (
         <Segment
           key={i}
           a={seg.a}
@@ -578,8 +662,8 @@ function FlowPulses({ active }: { active: boolean }) {
         />
       ))}
       {/* breaker nodes where feeders tap the busbar (SLD symbols) */}
-      {FEEDERS.map((f, i) => (
-        <mesh key={`n${i}`} position={[f.x, BUS_Y, BUS_Z]}>
+      {taps.map((f, i) => (
+        <mesh key={`n${i}`} position={[f.x, BUS_Y, f.z]}>
           <boxGeometry args={[0.08, 0.08, 0.08]} />
           <meshStandardMaterial color="#0b1220" emissive="#22d3ee" emissiveIntensity={active ? 0.9 : 0.3} metalness={0.4} roughness={0.5} toneMapped={false} />
         </mesh>
@@ -605,10 +689,10 @@ function FlowPulses({ active }: { active: boolean }) {
 /* ------------------------------------------------- grid pole + MDB + people */
 
 /** Utility distribution pole outside the plant — where MEA/PEA power enters. */
-function UtilityPole() {
+function UtilityPole({ x = POLE_POS.x, z = POLE_POS.z }: { x?: number; z?: number }) {
   const arm = "#6b5136";
   return (
-    <group position={[POLE_POS.x, 0, POLE_POS.z]}>
+    <group position={[x, 0, z]}>
       {/* pole */}
       <mesh position={[0, 1.05, 0]} castShadow>
         <cylinderGeometry args={[0.05, 0.075, 2.1, 10]} />
@@ -624,8 +708,8 @@ function UtilityPole() {
       {/* pole-mount transformer can */}
       <mesh position={[0.14, 1.42, 0]} castShadow><cylinderGeometry args={[0.085, 0.085, 0.22, 12]} /><meshStandardMaterial color="#3b4657" metalness={0.5} roughness={0.5} /></mesh>
       {/* incoming grid feeders — droop off toward the utility grid (+z, off-plant) */}
-      {[-0.4, 0, 0.4].map((x, i) => (
-        <Segment key={`g${i}`} a={new THREE.Vector3(POLE_POS.x + x, 1.98, POLE_POS.z)} b={new THREE.Vector3(POLE_POS.x + x * 1.15, 1.35, POLE_POS.z + 1.4)} radius={0.008} color="#94a3b8" intensity={0.15} opacity={0.5} />
+      {[-0.4, 0, 0.4].map((ox, i) => (
+        <Segment key={`g${i}`} a={new THREE.Vector3(ox, 1.98, 0)} b={new THREE.Vector3(ox * 1.15, 1.35, 1.4)} radius={0.008} color="#94a3b8" intensity={0.15} opacity={0.5} />
       ))}
       {/* the straight service drop into the MDB is drawn by FlowPulses (incoming segments) */}
       <Html position={[0, 2.28, 0]} center distanceFactor={9} occlude={false}>
@@ -638,10 +722,10 @@ function UtilityPole() {
 }
 
 /** MDB switchboard cabinet at its real floor position — the distribution hub. */
-function MdbCabinet({ active }: { active: boolean }) {
+function MdbCabinet({ active, x = MDB_POS.x, z = MDB_POS.z }: { active: boolean; x?: number; z?: number }) {
   const tr = useTr();
   return (
-    <group position={[MDB_POS.x, 0, MDB_POS.z]}>
+    <group position={[x, 0, z]}>
       <RoundedBox args={[0.36, 0.5, 0.26]} radius={0.03} smoothness={4} position={[0, 0.25, 0]} castShadow receiveShadow>
         <meshStandardMaterial color="#1e293b" metalness={0.55} roughness={0.4} emissive="#22d3ee" emissiveIntensity={active ? 0.22 : 0.08} />
       </RoundedBox>
@@ -957,7 +1041,12 @@ function Scene({
   reduce,
   coarse,
   assetList,
+  buildingList = buildings,
   assignments,
+  warRoom = false,
+  customLayout = false,
+  floatFor,
+  poleOverride,
 }: {
   layer: TwinLayer;
   selectedId: string | null;
@@ -965,7 +1054,12 @@ function Scene({
   reduce: boolean;
   coarse: boolean;
   assetList: Asset[];
+  buildingList?: Building[];
   assignments: CrewAssignment[];
+  warRoom?: boolean;
+  customLayout?: boolean;
+  floatFor?: (a: Asset) => string[] | undefined;
+  poleOverride?: { x: number; z: number } | null;
 }) {
   const assignedIds = useMemo(() => new Set(assignments.map((x) => x.assetId)), [assignments]);
   return (
@@ -982,13 +1076,17 @@ function Scene({
         </mesh>
         <gridHelper args={[20, 36, "#1d3a44", "#141a26"]} position={[0, 0.002, 0]} />
 
-        {buildings.map((b) => (
+        {buildingList.map((b) => (
           <BuildingBlock key={b.id} b={b} />
         ))}
 
-        <UtilityPole />
-        <MdbCabinet active={layer === "energy"} />
-        <FlowPulses active={layer === "energy"} />
+        {/* electrical infrastructure — on a user layout it exists only if the
+            user placed it from the library; the mock plant keeps its own */}
+        {customLayout
+          ? (poleOverride ? <UtilityPole x={poleOverride.x} z={poleOverride.z} /> : null)
+          : <UtilityPole />}
+        {!customLayout ? <MdbCabinet active={layer === "energy"} /> : null}
+        <FlowPulses active={layer === "energy"} assetList={assetList} custom={customLayout} pole={poleOverride} />
         <Inspectors assetList={assetList} skipIds={assignedIds} />
         <CrewFigures assignments={assignments} />
 
@@ -999,6 +1097,7 @@ function Scene({
             layer={layer}
             selected={a.id === selectedId}
             onSelect={onSelect}
+            float={floatFor?.(a)}
           />
         ))}
 
@@ -1016,8 +1115,8 @@ function Scene({
         enablePan={false}
         enableZoom
         enableRotate={!coarse}
-        autoRotate={!reduce}
-        autoRotateSpeed={0.4}
+        autoRotate={warRoom || !reduce}
+        autoRotateSpeed={warRoom ? 1.4 : 0.4}
         minPolarAngle={Math.PI / 7}
         maxPolarAngle={Math.PI / 2.3}
         minDistance={8}
@@ -1039,6 +1138,10 @@ export function DigitalTwin({
   overlay,
   liveStatuses,
   hideAssetList = false,
+  assetsOverride,
+  buildingsOverride,
+  floatInfo = false,
+  poleOverride,
 }: {
   height?: string;
   showInspector?: boolean;
@@ -1055,29 +1158,47 @@ export function DigitalTwin({
   /** hide the "factory floor" list — click a machine in the 3D scene instead;
    *  the detail panel then fills the full inspector height */
   hideAssetList?: boolean;
+  /** user-authored layout (Twin Builder) — replaces the mock plant */
+  assetsOverride?: Asset[];
+  buildingsOverride?: Building[];
+  /** per-machine floating data chips + the picker to choose what floats */
+  floatInfo?: boolean;
+  /** user-placed utility pole (Twin Builder) — grid drop starts here */
+  poleOverride?: { x: number; z: number } | null;
 }) {
   const tr = useTr();
   const [mounted, setMounted] = useState(false);
   const [coarse, setCoarse] = useState(false);
   const [layer, setLayer] = useState<TwinLayer>(defaultLayer);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [isFs, setIsFs] = useState(false);
+  const [warRoom, setWarRoom] = useState(false);
   const reduce = useReducedMotion() ?? false;
   const inView = useInView(wrapRef, { margin: "200px" });
 
+  // user-authored layout (Twin Builder) replaces the mock plant when present
+  const baseAssets = assetsOverride ?? assets;
+  const baseBuildings = buildingsOverride ?? buildings;
   const defaultId = useMemo(
-    () => assets.find((a) => a.status === "critical")?.id ?? assets[0]?.id ?? null,
-    [],
+    () => baseAssets.find((a) => a.status === "critical")?.id ?? baseAssets[0]?.id ?? null,
+    [baseAssets],
   );
   const [selectedId, setSelectedId] = useState<string | null>(defaultId);
+  useEffect(() => {
+    // layout switched (builder save) — keep the selection valid
+    if (selectedId && !baseAssets.some((a) => a.id === selectedId)) setSelectedId(defaultId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseAssets]);
   // active maintenance assignments — drives the named crew figures in the scene
   const crewAsgs = useCrewAssignments();
   // apply live event-simulation overrides on top of the static model
   const liveAssets = useMemo(
     () =>
       liveStatuses
-        ? assets.map((a) => (liveStatuses[a.id] ? { ...a, status: liveStatuses[a.id] } : a))
-        : assets,
-    [liveStatuses],
+        ? baseAssets.map((a) => (liveStatuses[a.id] ? { ...a, status: liveStatuses[a.id] } : a))
+        : baseAssets,
+    [liveStatuses, baseAssets],
   );
 
   const selected = useMemo(
@@ -1087,12 +1208,50 @@ export function DigitalTwin({
 
   const layerDefs = layers ? twinLayers.filter((l) => layers.includes(l.id)) : twinLayers;
 
+  // floating data chips — which metrics hover above which machine
+  const [floatCfg, setFloatCfg] = useState<FloatCfg>(FLOAT_DEFAULT);
+  const saveFloat = (c: FloatCfg) => {
+    setFloatCfg(c);
+    try { localStorage.setItem(FLOAT_KEY, JSON.stringify(c)); } catch { /* ignore */ }
+  };
+  const floatFor = useMemo(() => {
+    if (!floatInfo || !floatCfg.on) return undefined;
+    return (a: Asset) => floatCfg.per[a.id] ?? floatCfg.def;
+  }, [floatInfo, floatCfg]);
+
   useEffect(() => {
     setMounted(true);
+    if (floatInfo) setFloatCfg(loadFloatCfg());
     if (typeof window !== "undefined" && window.matchMedia) {
       setCoarse(window.matchMedia("(pointer: coarse)").matches);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // maximize — CSS overlay rather than the native Fullscreen API, which
+  // embedded webviews silently ignore; Esc exits and body scroll locks
+  useEffect(() => {
+    if (!isFs) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setIsFs(false); setWarRoom(false); } };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+  }, [isFs]);
+  const toggleFs = () => setIsFs((v) => { if (v) setWarRoom(false); return !v; });
+
+  // war-room — the wall-display mode: faster auto-rotate + data layers cycle
+  useEffect(() => {
+    if (!warRoom) return;
+    const t = setInterval(() => {
+      setLayer((cur) => {
+        const ids = layerDefs.map((l) => l.id);
+        return ids[(ids.indexOf(cur) + 1) % ids.length] ?? cur;
+      });
+    }, 8000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [warRoom]);
 
   // deep-link: focus an asset requested from another workspace tab
   useEffect(() => {
@@ -1121,7 +1280,7 @@ export function DigitalTwin({
       )}
     >
       {/* Canvas + controls */}
-      <div className="twin-stage relative overflow-hidden rounded-3xl border border-white/10 bg-ink-900/60">
+      <div ref={stageRef} className={cn("twin-stage overflow-hidden border border-white/10", isFs ? "fixed inset-0 z-[100] rounded-none bg-ink-900" : "relative rounded-3xl bg-ink-900/60")}>
         <div className="grid-bg pointer-events-none absolute inset-0 opacity-30" />
 
         {/* layer switcher */}
@@ -1143,7 +1302,78 @@ export function DigitalTwin({
           ))}
         </div>
 
-        <div ref={wrapRef} className={cn("relative w-full", height)}>
+        {/* fullscreen + war-room controls */}
+        <div className="absolute right-3 top-3 z-10 flex items-center gap-1.5">
+          {floatInfo ? (
+            <button
+              onClick={() => saveFloat({ ...floatCfg, on: !floatCfg.on })}
+              title={tr("Floating labels")}
+              aria-label={tr("Floating labels")}
+              className={cn(
+                "flex h-8 items-center gap-1.5 rounded-full border px-3 text-[11px] font-medium backdrop-blur transition",
+                floatCfg.on
+                  ? "border-brand-400/50 bg-brand-400/15 text-brand-200"
+                  : "border-white/10 bg-black/30 text-white/60 hover:border-white/25 hover:text-white",
+              )}
+            >
+              <Tags size={13} /> {tr("Floating labels")}
+            </button>
+          ) : null}
+          {isFs ? (
+            <button
+              onClick={() => setWarRoom((v) => !v)}
+              title={tr("Auto-rotate · layers cycle every 8s")}
+              aria-label={tr("War-room mode")}
+              className={cn(
+                "flex h-8 items-center gap-1.5 rounded-full border px-3 text-[11px] font-medium backdrop-blur transition",
+                warRoom
+                  ? "border-brand-400/50 bg-brand-400/15 text-brand-200"
+                  : "border-white/10 bg-black/30 text-white/60 hover:border-white/25 hover:text-white",
+              )}
+            >
+              <Radar size={13} className={warRoom ? "animate-pulse" : undefined} /> {tr("War-room mode")}
+            </button>
+          ) : null}
+          <button
+            onClick={toggleFs}
+            title={tr(isFs ? "Exit fullscreen" : "Fullscreen")}
+            aria-label={tr(isFs ? "Exit fullscreen" : "Fullscreen")}
+            className="grid h-8 w-8 place-items-center rounded-full border border-white/10 bg-black/30 text-white/60 backdrop-blur transition hover:border-white/25 hover:text-white"
+          >
+            {isFs ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+          </button>
+        </div>
+
+        {/* per-machine floating-label picker — select a machine, tick what floats */}
+        {floatInfo && floatCfg.on && selected ? (
+          <div className="absolute bottom-3 left-1/2 z-10 w-max max-w-[calc(100%-1.5rem)] -translate-x-1/2 rounded-xl border border-white/12 bg-black/70 px-3.5 py-2.5 backdrop-blur">
+            <p className="text-[10px] font-medium text-white/55">{tr("Floating label of")} <b className="text-white/85">{selected.name}</b> · {tr("Pick what floats above this machine")}</p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              {FLOAT_METRICS.map((m) => {
+                const cur = floatCfg.per[selected.id] ?? floatCfg.def;
+                const on = cur.includes(m.id);
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => saveFloat({ ...floatCfg, per: { ...floatCfg.per, [selected.id]: on ? cur.filter((x) => x !== m.id) : [...cur, m.id] } })}
+                    className={cn("rounded-full border px-2 py-0.5 text-[10px] transition", on ? "border-brand-400/50 bg-brand-400/15 text-brand-100" : "border-white/12 bg-white/[0.03] text-white/50 hover:text-white")}
+                  >{on ? "✓ " : ""}{m.label}</button>
+                );
+              })}
+              <span className="mx-1 h-4 w-px bg-white/10" />
+              <button
+                onClick={() => saveFloat({ on: floatCfg.on, def: floatCfg.per[selected.id] ?? floatCfg.def, per: {} })}
+                className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] text-emerald-300 transition hover:bg-emerald-400/20"
+              >{tr("Apply to every machine")}</button>
+              <button
+                onClick={() => saveFloat({ ...floatCfg, per: { ...floatCfg.per, [selected.id]: [] } })}
+                className="rounded-full border border-white/12 bg-white/[0.03] px-2 py-0.5 text-[10px] text-white/50 transition hover:text-white"
+              >{tr("Hide for this machine")}</button>
+            </div>
+          </div>
+        ) : null}
+
+        <div ref={wrapRef} className={cn("relative w-full", isFs ? "h-full" : height)}>
           {mounted ? (
             <Canvas
               shadows
@@ -1159,7 +1389,12 @@ export function DigitalTwin({
                 reduce={reduce}
                 coarse={coarse}
                 assetList={liveAssets}
+                buildingList={baseBuildings}
                 assignments={crewAsgs}
+                warRoom={warRoom}
+                customLayout={!!assetsOverride}
+                floatFor={floatFor}
+                poleOverride={poleOverride}
               />
             </Canvas>
           ) : (
@@ -1179,9 +1414,27 @@ export function DigitalTwin({
           </div>
         ) : null}
 
+        {/* cost-burn HUD — the number a plant manager walks past and understands */}
+        {layer === "cost" ? (
+          <div className="pointer-events-none absolute inset-x-3 bottom-10 z-10 flex justify-center">
+            <span className="rounded-full border border-rose-400/30 bg-black/50 px-3.5 py-1.5 text-[12px] text-white/80 backdrop-blur">
+              {tr("Plant burning now")}{" "}
+              <b className="tabular text-rose-300">฿{liveAssets.reduce((s, a) => s + assetBurnPerHr(a), 0).toLocaleString()}</b> {tr("per hr")}
+              <span className="text-white/45"> · ≈฿{Math.round((liveAssets.reduce((s, a) => s + assetBurnPerHr(a), 0) * 24) / 1000).toLocaleString()}K {tr("per day")}</span>
+            </span>
+          </div>
+        ) : null}
+
         {/* legend */}
         <div className="pointer-events-none absolute bottom-3 left-3 flex flex-wrap items-center gap-3 text-[11px] text-white/55">
-          {layer === "carbon" ? (
+          {layer === "cost" ? (
+            <>
+              <Legend dot="bg-status-ok" label={tr("Low burn")} />
+              <Legend dot="bg-status-warn" label={tr("Medium")} />
+              <Legend dot="bg-status-crit" label={tr("High burn")} />
+              <span className="text-white/40">{tr("colour = ฿/hr above healthy baseline")}</span>
+            </>
+          ) : layer === "carbon" ? (
             <>
               <Legend dot="bg-status-ok" label={tr("Low")} />
               <Legend dot="bg-status-warn" label={tr("Medium")} />
@@ -1278,6 +1531,7 @@ export function DigitalTwin({
                     <Metric label={tr("Vibration")} value={`${selected.vibration}`} unit="mm/s" />
                     <Metric label={tr("Temp")} value={`${selected.tempC}`} unit="°C" />
                     <Metric label="CO₂" value={`${selected.co2KgH}`} unit="kg/h" />
+                    <Metric label={tr("Burn now")} value={`฿${assetBurnPerHr(selected).toLocaleString()}`} unit={tr("/hr")} />
                   </div>
                 )}
 
@@ -1313,7 +1567,7 @@ export function DigitalTwin({
           {!hideAssetList ? (
             <div className="panel flex min-h-0 flex-1 flex-col p-5">
               <p className="shrink-0 text-[11px] uppercase tracking-wider text-white/50">
-                {tr("Factory floor")} · {assets.length} {tr("assets")}
+                {tr("Factory floor")} · {liveAssets.length} {tr("assets")}
               </p>
               <ul className="mt-3 flex min-h-0 flex-1 flex-col gap-1 overflow-auto pr-1">
                 {liveAssets.map((a) => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { pushNotification } from "./notifications";
 
 export type LZ = { en: string; th: string };
 export type WOStatus = "approved" | "parts" | "scheduled" | "in_progress" | "done" | "verified";
@@ -162,11 +163,34 @@ export function createWorkOrder(
 }
 
 export function advanceWorkOrder(id: string) {
+  let verified: WorkOrder | null = null;
   commit(
     cache.map((w) => {
       if (w.id !== id) return w;
       const i = WO_FLOW.indexOf(w.status);
-      return i < WO_FLOW.length - 1 ? { ...w, status: WO_FLOW[i + 1] } : w;
+      if (i >= WO_FLOW.length - 1) return w;
+      const next = { ...w, status: WO_FLOW[i + 1] };
+      if (next.status === "verified") verified = next;
+      return next;
     }),
   );
+  // closing the loop: a verified WO notifies its source module + kicks off post-fix M&V
+  if (verified) {
+    const w: WorkOrder = verified;
+    const now = new Date();
+    const at = `${isoDate(now)} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    pushNotification({
+      id: `NT-${w.id}-verified`,
+      source: w.source === "manual" ? "system" : w.source,
+      kind: "verified",
+      title: { en: `Work order verified · ${w.findingCode ?? w.id}`, th: `งานยืนยันผลแล้ว · ${w.findingCode ?? w.id}` },
+      body: {
+        en: `${w.title.en} — verified saving ฿${w.annualSaving.toLocaleString()}/yr. Machine is now under post-fix M&V monitoring.`,
+        th: `${w.title.th} — ประหยัดจริง ฿${w.annualSaving.toLocaleString()}/ปี · เครื่องเข้าสู่การเฝ้าดูเทียบก่อน/หลัง`,
+      },
+      at,
+      read: false,
+      href: w.source === "energy" ? "/os/energy" : "/os/workorders",
+    });
+  }
 }

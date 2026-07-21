@@ -50,7 +50,7 @@ export function MaintenanceTeams() {
           <div className="flex items-center gap-2">
             <span className="grid h-8 w-8 place-items-center rounded-xl border border-brand-400/30 bg-brand-400/10 text-brand-300"><Users size={16} /></span>
             <div>
-              <h3 className="text-sm font-semibold">{L({ en: "Org chart — maintenance departments", th: "ผังองค์กร — แผนกซ่อมบำรุง" })}</h3>
+              <h3 className="text-sm font-semibold">{L({ en: "Org Chart — Maintenance Departments", th: "ผังองค์กร — แผนกซ่อมบำรุง" })}</h3>
               <p className="text-[11px] text-white/45">{L({ en: "Pick a department tab to see its supervisor & technicians · click a name to rename, ▾ to change the head, × to remove", th: "เลือกแท็บแผนกเพื่อดูหัวหน้าและช่างในแผนก · คลิกชื่อเพื่อแก้ · ▾ เปลี่ยนหัวหน้า · × เอาออก" })}</p>
             </div>
           </div>
@@ -128,7 +128,7 @@ function RosterPanel({ locale, L }: { locale: string; L: (o: LZ) => string }) {
       <div className="flex items-center gap-2">
         <span className="grid h-8 w-8 place-items-center rounded-xl border border-brand-400/30 bg-brand-400/10 text-brand-300"><Users size={16} /></span>
         <div>
-          <h3 className="text-sm font-semibold">{L({ en: "Engineer roster", th: "ช่างในระบบ" })} · {people.length}</h3>
+          <h3 className="text-sm font-semibold">{L({ en: "Engineer Roster", th: "ช่างในระบบ" })} · {people.length}</h3>
           <p className="text-[11px] text-white/45">{L({ en: "Everyone you can put in a department. Add new hires or contractors here.", th: "รายชื่อช่างทั้งหมดที่จัดเข้าแผนกได้ — เพิ่มพนักงานใหม่/ผู้รับเหมาได้ที่นี่" })}</p>
         </div>
       </div>
@@ -209,7 +209,7 @@ function RosterPanel({ locale, L }: { locale: string; L: (o: LZ) => string }) {
                     {confirming ? (
                       <span className="inline-flex items-center gap-0.5">
                         <button onClick={() => { removePerson(p.id); setConfirmId(null); }} title={L({ en: "Confirm remove", th: "ยืนยันเอาออก" })} className="grid h-6 w-6 place-items-center rounded-md bg-rose-500/15 text-rose-300 transition hover:bg-rose-500/25"><Check size={13} /></button>
-                        <button onClick={() => setConfirmId(null)} title={L({ en: "Cancel", th: "·เลิก" })} className="grid h-6 w-6 place-items-center rounded-md text-white/40 hover:text-white/70"><X size={13} /></button>
+                        <button onClick={() => setConfirmId(null)} title={L({ en: "Cancel", th: "ยกเลิก" })} className="grid h-6 w-6 place-items-center rounded-md text-white/40 hover:text-white/70"><X size={13} /></button>
                       </span>
                     ) : people.length > 1 ? (
                       <button onClick={() => setConfirmId(p.id)} title={L({ en: "Remove from roster", th: "เอาออกจากระบบ" })} className="grid h-6 w-6 place-items-center rounded-md text-white/30 transition hover:bg-rose-500/10 hover:text-rose-300"><Trash2 size={12} /></button>
@@ -274,7 +274,7 @@ function LeaderNode({ team, locale, L }: { team: Team; locale: string; L: (o: LZ
         {confirmDel ? (
           <span className="flex shrink-0 items-center gap-0.5">
             <button onClick={() => removeTeam(team.id)} title={L({ en: "Confirm delete", th: "ยืนยันลบ" })} className="grid h-5 w-5 place-items-center rounded bg-rose-500/15 text-rose-300 hover:bg-rose-500/25"><Check size={12} /></button>
-            <button onClick={() => setConfirmDel(false)} title={L({ en: "Cancel", th: "·เลิก" })} className="grid h-5 w-5 place-items-center rounded text-white/40 hover:text-white/70"><X size={12} /></button>
+            <button onClick={() => setConfirmDel(false)} title={L({ en: "Cancel", th: "ยกเลิก" })} className="grid h-5 w-5 place-items-center rounded text-white/40 hover:text-white/70"><X size={12} /></button>
           </span>
         ) : (
           <button onClick={() => setConfirmDel(true)} title={L({ en: "Delete department", th: "ลบแผนก" })} className="grid h-5 w-5 shrink-0 place-items-center rounded text-white/25 transition hover:bg-rose-500/10 hover:text-rose-300"><Trash2 size={12} /></button>

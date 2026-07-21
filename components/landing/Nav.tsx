@@ -44,6 +44,8 @@ export function Nav() {
               {l.label}
             </a>
           ))}
+          {/* Pricing/estimator link removed for now — the /estimate page itself
+              is kept so it can be re-linked later */}
         </nav>
         <div className="ml-auto flex items-center gap-2.5">
           <ThemeToggle />
@@ -53,7 +55,7 @@ export function Nav() {
           >
             <Sparkles size={15} /> Ask Copilot
           </button>
-          <Link href="/os" className="btn-glow px-4 py-2 text-sm">
+          <Link href="/login" className="btn-glow px-4 py-2 text-sm">
             Launch FactoryOS <ArrowRight size={15} />
           </Link>
         </div>

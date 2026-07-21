@@ -26,6 +26,28 @@
   --c-blue: #93c5fd;
   --c-slate: #94a3b8;
   --c-bright: #e2e8f0;
+
+  /* Workflow rail ("Conduit"/"Meridian") — inline styles can't be remapped by class
+     overrides, so the bar reads these theme-aware tokens. Dark-first defaults here;
+     html.light re-forges each pigment for a white ground (see meridian-philosophy.md). */
+  --wf-carrier: #22d3ee;      /* live cyan — rail, active node, icon */
+  --wf-carrier-hi: #a5f3fc;   /* bright end of the energised gradient / token top */
+  --wf-carrier-lo: #0e7490;   /* deep end of the active token gradient */
+  --wf-carrier-ink: #083344;  /* text that sits ON a bright carrier token */
+  --wf-ai: #818cf8;           /* indigo — the AI junctions */
+  --wf-ai-hi: #c7d2fe;
+  --wf-ai-lo: #4338ca;
+  --wf-ai-ink: #1e1b4b;
+  --wf-done: #34d399;         /* emerald — closed stages */
+  --wf-done-soft: rgba(52, 211, 153, 0.14);
+  --wf-rail: rgba(255, 255, 255, 0.08);   /* dormant rail base */
+  --wf-dormant: #1a2536;      /* upcoming junction dot */
+  --wf-ring: rgba(255, 255, 255, 0.16);   /* ring on dormant dot */
+  --wf-ring-on: rgba(255, 255, 255, 0.7); /* ring on active/done dot */
+  --wf-token: rgba(255, 255, 255, 0.05);  /* upcoming number tile fill */
+  --wf-token-border: transparent;
+  --wf-icon-done: rgba(255, 255, 255, 0.5);
+  --wf-icon-idle: rgba(255, 255, 255, 0.35);
 }
 
 * {
@@ -274,6 +296,27 @@ html.light {
   --c-blue: #2563eb;
   --c-slate: #475569;
   --c-bright: #141924;
+
+  /* Meridian — the workflow rail re-measured for daylight. Same meaning, deeper pigment;
+     dormant/upcoming get real edges so they don't wash out on white. */
+  --wf-carrier: #0e7490;
+  --wf-carrier-hi: #0e7490;   /* collapse the gradient to a near-solid deep teal */
+  --wf-carrier-lo: #155e75;
+  --wf-carrier-ink: #ffffff;
+  --wf-ai: #4f46e5;
+  --wf-ai-hi: #4f46e5;
+  --wf-ai-lo: #4338ca;
+  --wf-ai-ink: #ffffff;
+  --wf-done: #047857;
+  --wf-done-soft: rgba(4, 120, 87, 0.12);
+  --wf-rail: #dbe1ea;
+  --wf-dormant: #cbd5e1;
+  --wf-ring: #94a3b8;
+  --wf-ring-on: #ffffff;
+  --wf-token: #eef2f7;
+  --wf-token-border: rgba(15, 23, 42, 0.09);
+  --wf-icon-done: #047857;
+  --wf-icon-idle: #64748b;
 }
 
 /* remaining pastel text classes (shades + alpha variants) not covered above */
@@ -320,6 +363,24 @@ html.light .twin-stage [class*="text-emerald-"], html.light .twin-stage [class*=
 html.light .twin-stage [class*="text-amber-"], html.light .twin-stage [class*="text-yellow-"], html.light .dark-screen [class*="text-amber-"], html.light .dark-screen [class*="text-yellow-"] { color: #fcd34d; }
 html.light .twin-stage [class*="text-rose-"], html.light .twin-stage [class*="text-red-"], html.light .dark-screen [class*="text-rose-"], html.light .dark-screen [class*="text-red-"] { color: #fda4af; }
 html.light .twin-stage [class*="text-indigo-"], html.light .twin-stage [class*="text-violet-"], html.light .twin-stage [class*="text-purple-"], html.light .dark-screen [class*="text-indigo-"], html.light .dark-screen [class*="text-purple-"] { color: #c4b5fd; }
+
+/* …and neutral text + hairlines on those dark surfaces stay LIGHT (the global remap
+   darkens text-white/* → invisible on the dark ground, e.g. the Single Line Diagram bar) */
+html.light .twin-stage, html.light .dark-screen { color: rgba(255, 255, 255, 0.85); }
+html.light .twin-stage .text-white, html.light .dark-screen .text-white { color: #fff; }
+html.light .twin-stage .text-white\/90, html.light .dark-screen .text-white\/90 { color: rgba(255, 255, 255, 0.9); }
+html.light .twin-stage .text-white\/85, html.light .dark-screen .text-white\/85 { color: rgba(255, 255, 255, 0.85); }
+html.light .twin-stage .text-white\/80, html.light .dark-screen .text-white\/80 { color: rgba(255, 255, 255, 0.8); }
+html.light .twin-stage .text-white\/75, html.light .dark-screen .text-white\/75 { color: rgba(255, 255, 255, 0.75); }
+html.light .twin-stage .text-white\/70, html.light .dark-screen .text-white\/70 { color: rgba(255, 255, 255, 0.7); }
+html.light .twin-stage .text-white\/60, html.light .dark-screen .text-white\/60 { color: rgba(255, 255, 255, 0.6); }
+html.light .twin-stage .text-white\/50, html.light .dark-screen .text-white\/50 { color: rgba(255, 255, 255, 0.5); }
+html.light .twin-stage .text-white\/45, html.light .dark-screen .text-white\/45 { color: rgba(255, 255, 255, 0.46); }
+html.light .twin-stage .text-white\/40, html.light .dark-screen .text-white\/40 { color: rgba(255, 255, 255, 0.42); }
+html.light .twin-stage .text-white\/35, html.light .dark-screen .text-white\/35 { color: rgba(255, 255, 255, 0.38); }
+html.light .twin-stage .hover\:text-white\/75:hover, html.light .dark-screen .hover\:text-white\/75:hover { color: rgba(255, 255, 255, 0.75); }
+html.light .twin-stage [class*="border-white/"], html.light .dark-screen [class*="border-white/"] { border-color: rgba(255, 255, 255, 0.12); }
+html.light .twin-stage [class*="bg-white/"], html.light .dark-screen [class*="bg-white/"] { background-color: rgba(255, 255, 255, 0.05); }
 
 /* charts — hairline grid visible on light */
 html.light .recharts-cartesian-grid line { stroke: rgba(15, 23, 42, 0.08); }

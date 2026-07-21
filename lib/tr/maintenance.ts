@@ -24,12 +24,11 @@ export const maintenanceDict: TrDict = {
   "One": { th: "มี", ja: "", zh: "有一张" },
   "work order: Chiller B condenser clean (parts in stock).": { th: "ใบสั่งงาน: ล้างคอนเดนเซอร์ Chiller B (มีอะไหล่ในสต็อก)", ja: "作業指示: Chiller B コンデンサ清掃 (部品在庫あり)。", zh: "工单：Chiller B 冷凝器清洗（备件有库存）。" },
   "Press main bearing": { th: "แบริ่งหลักของ Press", ja: "プレス主軸受", zh: "冲压机主轴承" },
-  "is out of stock with a 21-day lead — reorder now to cover the predicted failure in ~6 days. Wrench-time efficiency is up 3.2× after prescriptive scheduling.": { th: "หมดสต็อก ระยะเวลาสั่ง 21 วัน — สั่งซื้อตอนนี้เพื่อรองรับการเสี·ี่คาดว่าจะเกิดใน ~6 วัน เวลาลงมือซ่อมมีประสิทธิภาพขึ้น 3.2× หลังใช้การจัดตารางแบบพรีสคริปทีฟ", ja: "在庫切れでリードタイム21日 — 約6日後に予測される故障に備え、今すぐ再発注してください。処方的スケジューリングでレンチタイム効率が3.2倍に向上。", zh: "已缺货且交货期21天 — 请立即再订货以应对约6天后的预测故障。采用处方式排程后，扳手作业效率提升3.2倍。" },
+  "is out of stock with a 21-day lead — reorder now to cover the predicted failure in ~6 days. Wrench-time efficiency is up 3.2× after prescriptive scheduling.": { th: "หมดสต็อก ระยะเวลาสั่ง 21 วัน — สั่งซื้อตอนนี้เพื่อรองรับการเสียที่คาดว่าจะเกิดใน ~6 วัน เวลาลงมือซ่อมมีประสิทธิภาพขึ้น 3.2× หลังใช้การจัดตารางแบบพรีสคริปทีฟ", ja: "在庫切れでリードタイム21日 — 約6日後に予測される故障に備え、今すぐ再発注してください。処方的スケジューリングでレンチタイム効率が3.2倍に向上。", zh: "已缺货且交货期21天 — 请立即再订货以应对约6天后的预测故障。采用处方式排程后，扳手作业效率提升3.2倍。" },
   "Prioritize this week": { th: "จัดลำดับความสำคัญสัปดาห์นี้", ja: "今週の優先順位付け", zh: "本周优先排序" },
   "Reorder check": { th: "ตรวจสอบการสั่งซื้อ", ja: "再発注チェック", zh: "再订货检查" },
 
   // —— work orders ——
-  "Work orders": { th: "ใบสั่งงาน", ja: "作業指示", zh: "工单" },
   "AI-scheduled": { th: "จัดตารางโดย AI", ja: "AIスケジュール", zh: "AI 排程" },
   "Asset / Task": { th: "สินทรัพย์ / งาน", ja: "資産 / 作業", zh: "资产 / 任务" },
   "Priority": { th: "ความสำคัญ", ja: "優先度", zh: "优先级" },
@@ -60,26 +59,26 @@ export const maintenanceDict: TrDict = {
   "Status": { th: "สถานะ", ja: "状態", zh: "状态" },
 
   // —— spares views ——
-  "Spare-parts inventory": { th: "คลังอะไหล่", ja: "スペアパーツ在庫", zh: "备件库存" },
-  "Critical spares": { th: "อะไหล่วิกฤต", ja: "重要スペア", zh: "关键备件" },
+  "Spare-Parts Inventory": { th: "คลังอะไหล่", ja: "スペアパーツ在庫", zh: "备件库存" },
+  "Critical Spares": { th: "อะไหล่วิกฤต", ja: "重要スペア", zh: "关键备件" },
   "flagged": { th: "ถูกทำเครื่องหมาย", ja: "件フラグ", zh: "项已标记" },
 
   // —— reorder view ——
   "Reorder Now": { th: "สั่งซื้อทันที", ja: "今すぐ再発注", zh: "立即再订货" },
   "Out of Stock": { th: "หมดสต็อก", ja: "在庫切れ", zh: "缺货" },
   "Est. PO Value": { th: "มูลค่า PO โดยประมาณ", ja: "発注見込額", zh: "预估采购额" },
-  "AI reorder recommendation": { th: "คำแนะนำการสั่งซื้อโดย AI", ja: "AI再発注提案", zh: "AI 再订货建议" },
+  "AI Reorder Recommendation": { th: "คำแนะนำการสั่งซื้อโดย AI", ja: "AI再発注提案", zh: "AI 再订货建议" },
   "auto-drafted": { th: "ร่างอัตโนมัติ", ja: "自動作成", zh: "自动草拟" },
   "min": { th: "ขั้นต่ำ", ja: "最小", zh: "最小" },
   "lead": { th: "ระยะเวลาสั่ง", ja: "リードタイム", zh: "交货期" },
-  "covers a predicted failure": { th: "ครอบคลุมการเสี·ี่คาดการณ์ไว้", ja: "予測故障に対応", zh: "覆盖预测故障" },
+  "covers a predicted failure": { th: "ครอบคลุมการเสียที่คาดการณ์ไว้", ja: "予測故障に対応", zh: "覆盖预测故障" },
   "Qty": { th: "จำนวน", ja: "数量", zh: "数量" },
   "Draft PO": { th: "ร่างใบสั่งซื้อ", ja: "発注書作成", zh: "拟采购单" },
 
   // —— copilot ——
   "Maintenance Copilot": { th: "ผู้ช่วยงานบำรุงรักษา", ja: "保全コパイロット", zh: "维护副驾驶" },
-  "Troubleshoot, recall SOPs, and plan repairs — grounded in live data": { th: "แก้ปัญหา เรี·ดู SOP และวางแผนซ่อม — อ้างอิงจากข้อมูลสด", ja: "トラブルシュート、SOP参照、修理計画 — ライブデータに基づく", zh: "排障、调取 SOP 并规划维修 — 基于实时数据" },
-  "There's 1 P1 work order open and a spare part out of stock. Ask me to troubleshoot a fault, pull an SOP, or recommend a repair.": { th: "มีใบสั่งงาน P1 เปิดอยู่ 1 ใบ และอะไหล่หมดสต็อก 1 รา·าร ถามฉันให้ช่วยแก้ปัญหา ดึง SOP หรือแนะนำวิธีซ่อมได้", ja: "P1作業指示が1件、在庫切れのスペアが1点あります。故障の切り分け、SOPの参照、修理の提案をご依頼ください。", zh: "有 1 张 P1 工单未结、1 项备件缺货。可让我排查故障、调取 SOP 或推荐维修方案。" },
+  "Troubleshoot, recall SOPs, and plan repairs — grounded in live data": { th: "แก้ปัญหา เรียกดู SOP และวางแผนซ่อม — อ้างอิงจากข้อมูลปัจจุบัน", ja: "トラブルシュート、SOP参照、修理計画 — ライブデータに基づく", zh: "排障、调取 SOP 并规划维修 — 基于实时数据" },
+  "There's 1 P1 work order open and a spare part out of stock. Ask me to troubleshoot a fault, pull an SOP, or recommend a repair.": { th: "มีใบสั่งงาน P1 เปิดอยู่ 1 ใบ และอะไหล่หมดสต็อก 1 รายการ ถามฉันให้ช่วยแก้ปัญหา ดึง SOP หรือแนะนำวิธีซ่อมได้", ja: "P1作業指示が1件、在庫切れのスペアが1点あります。故障の切り分け、SOPの参照、修理の提案をご依頼ください。", zh: "有 1 张 P1 工单未结、1 项备件缺货。可让我排查故障、调取 SOP 或推荐维修方案。" },
   "Ask the Maintenance Copilot…": { th: "ถามผู้ช่วยงานบำรุงรักษา…", ja: "保全コパイロットに質問…", zh: "向维护副驾驶提问…" },
 
   // —— copilot prompts ——

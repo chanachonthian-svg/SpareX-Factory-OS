@@ -169,8 +169,8 @@ export const execAiBrief = {
     { en: "Pump P-203 has an 82% chance of bearing seizure within ~3 days (฿1.4M impact)", th: "Pump P-203 มีโอกาส 82% ที่แบริ่งจะล็อกภายใน ~3 วัน (กระทบ ฿1.4M)" },
     { en: "Compressor #2 wastes ฿380K/yr running through on-peak hours", th: "Compressor #2 เดินช่วง on-peak เปลืองไฟ ฿380K/ปี" },
   ],
-  why: { en: "P-203's vibration is climbing the same way it did before the last seizure — the most likely explanation is a failing bearing, not a sensor issue.", th: "ความสั่นของ P-203 ไต่ขึ้นแบบเดียวกับก่อนเคสแบริ่งล็อกครั้งที่แล้ว — คำอธิบา·ี่เป็นไปได้สุดคือแบริ่งกำลังเสีย ไม่ใช่เซนเซอร์เพี้ยน" },
+  why: { en: "P-203's vibration is climbing the same way it did before the last seizure — the most likely explanation is a failing bearing, not a sensor issue.", th: "ความสั่นของ P-203 ไต่ขึ้นแบบเดียวกับก่อนเคสแบริ่งล็อกครั้งที่แล้ว — คำอธิบายที่เป็นไปได้สุดคือแบริ่งกำลังเสีย ไม่ใช่เซนเซอร์เพี้ยน" },
   impact: { en: "If P-203 fails: the cooling loop stops, deliveries slip ~฿1.4M, and the whole week's plan gets re-shuffled around an emergency repair.", th: "ถ้า P-203 พังจริง: ระบบน้ำเย็นหยุด งานส่งมอบสะดุด ~฿1.4M และแผนทั้งสัปดาห์ต้องรื้อมารับงานซ่อมฉุกเฉิน" },
   recommendation: { en: "Approve the ฿62K P-203 repair today and shift Compressor #2 off-peak — two decisions worth ฿1.78M.", th: "อนุมัติซ่อม P-203 (฿62K) วันนี้ และย้าย Compressor #2 ไปเดินนอก on-peak — สองเรื่องนี้มีมูลค่ารวม ฿1.78M" },
-  actionLabel: { en: "Review the decisions below", th: "ดูรา·ารตัดสินใจด้านล่าง" },
+  actionLabel: { en: "Review the decisions below", th: "ดูรายการตัดสินใจด้านล่าง" },
 };

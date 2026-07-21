@@ -10,14 +10,14 @@ export const operationsDict: TrDict = {
   "AI Optimization": { th: "การปรับให้เหมาะสมด้วย AI", ja: "AI最適化", zh: "AI优化" },
 
   // —— GenericView placeholder ——
-  "runs on the live production model — combining OEE, downtime, cost and profit signals. Ask the Production Copilot to generate this analysis or take action.": { th: "ทำงานบนโมเดลการผลิตสด — รวมสัญญาณ OEE ดาวน์ไทม์ ต้นทุน และกำไร ขอให้ Production Copilot สร้างการวิเคราะห์นี้หรือดำเนินการ", ja: "ライブ生産モデル上で動作 — OEE、ダウンタイム、原価、利益のシグナルを統合。Production Copilotに分析生成や対応を依頼してください。", zh: "运行于实时生产模型 — 综合OEE、停机、成本与利润信号。可请Production Copilot生成此分析或采取行动。" },
+  "runs on the live production model — combining OEE, downtime, cost and profit signals. Ask the Production Copilot to generate this analysis or take action.": { th: "ทำงานบนโมเดลการผลิตเรียลไทม์ — รวมสัญญาณ OEE ดาวน์ไทม์ ต้นทุน และกำไร ขอให้ Production Copilot สร้างการวิเคราะห์นี้หรือดำเนินการ", ja: "ライブ生産モデル上で動作 — OEE、ダウンタイム、原価、利益のシグナルを統合。Production Copilotに分析生成や対応を依頼してください。", zh: "运行于实时生产模型 — 综合OEE、停机、成本与利润信号。可请Production Copilot生成此分析或采取行动。" },
   "Ask AI about": { th: "ถาม AI เกี่ยวกับ", ja: "AIに質問:", zh: "向AI询问" },
 
   // —— GenericView leaf labels (reachable via wired tabs) ——
   "Cost per Unit": { th: "ต้นทุนต่อหน่วย", ja: "単位当たり原価", zh: "单位成本" },
   "Bottleneck": { th: "คอขวด", ja: "ボトルネック", zh: "瓶颈" },
-  "Production by Line": { th: "การผลิตแ·ตามไลน์", ja: "ライン別生産", zh: "按产线生产" },
-  "Production by Machine": { th: "การผลิตแ·ตามเครื่องจักร", ja: "設備別生産", zh: "按设备生产" },
+  "Production by Line": { th: "การผลิตแยกตามไลน์", ja: "ライン別生産", zh: "按产线生产" },
+  "Production by Machine": { th: "การผลิตแยกตามเครื่องจักร", ja: "設備別生産", zh: "按设备生产" },
   "Shift Performance": { th: "ประสิทธิภาพตามกะ", ja: "シフト実績", zh: "班次绩效" },
   "Downtime Analysis": { th: "การวิเคราะห์ดาวน์ไทม์", ja: "ダウンタイム分析", zh: "停机分析" },
   "Root Cause": { th: "สาเหตุที่แท้จริง", ja: "根本原因", zh: "根本原因" },
@@ -84,7 +84,7 @@ export const operationsDict: TrDict = {
   "vs. plan. Line C is exceeding target;": { th: "เทียบกับแผน · Line C เกินเป้าหมาย;", ja: "計画比。Line Cは目標超過;", zh: "对比计划。Line C超出目标;" },
   "is dragging plant OEE on changeover losses (~฿15k/day). Cutting Line B changeover recovers ~4 OEE points.": { th: "กำลังฉุด OEE ของโรงงานจากการสูญเสียช่วงเปลี่ยนรุ่น (~฿15k/วัน) การลดเวลาเปลี่ยนรุ่น Line B กู้คืน OEE ได้ ~4 จุด", ja: "段取り替え損失で工場OEEを押し下げています (~฿15k/日)。Line Bの段取り替え短縮でOEE約4ポイント回復。", zh: "因换型损失拖累工厂OEE (~฿15k/天)。缩短Line B换型可回收约4个OEE点。" },
   "OEE · 30-day trend": { th: "OEE · แนวโน้ม 30 วัน", ja: "OEE · 30日トレンド", zh: "OEE · 30天趋势" },
-  "Output by line · today": { th: "ผลผลิตแ·ตามไลน์ · วันนี้", ja: "ライン別産出 · 本日", zh: "按产线产出 · 今日" },
+  "Output by line · today": { th: "ผลผลิตแยกตามไลน์ · วันนี้", ja: "ライン別産出 · 本日", zh: "按产线产出 · 今日" },
 
   // —— OEE Dashboard ——
   "OEE composition · 30-day": { th: "องค์ประกอบ OEE · 30 วัน", ja: "OEE構成 · 30日", zh: "OEE构成 · 30天" },
@@ -110,9 +110,9 @@ export const operationsDict: TrDict = {
 
   // —— Production Copilot ——
   "Production Copilot": { th: "Production Copilot", ja: "Production Copilot", zh: "Production Copilot" },
-  "Ask anything about production — grounded in live data": { th: "ถามอะไรก็ได้เกี่ยวกับการผลิต — อ้างอิงจากข้อมูลสด", ja: "生産について何でも質問 — ライブデータに基づく", zh: "任意询问生产相关问题 — 基于实时数据" },
-  "Output is +2% vs plan, but Line B changeover is dragging OEE. Ask me to explain a loss, find the bottleneck, or recommend actions.": { th: "ผลผลิต +2% เทียบกับแผน แต่การเปลี่ยนรุ่น Line B กำลังฉุด OEE ถามฉันให้อธิบา·ารสูญเสีย หาคอขวด หรือแนะนำการดำเนินการได้", ja: "産出は計画比+2%ですが、Line Bの段取り替えがOEEを押し下げています。損失の説明、ボトルネックの特定、対策の提案をお申し付けください。", zh: "产出较计划+2%，但Line B换型正拖累OEE。可让我解释某项损失、找出瓶颈或建议措施。" },
-  "Explain today's OEE loss": { th: "อธิบา·ารสูญเสีย OEE ของวันนี้", ja: "本日のOEE損失を説明", zh: "解释今日的OEE损失" },
+  "Ask anything about production — grounded in live data": { th: "ถามอะไรก็ได้เกี่ยวกับการผลิต — อ้างอิงจากข้อมูลปัจจุบัน", ja: "生産について何でも質問 — ライブデータに基づく", zh: "任意询问生产相关问题 — 基于实时数据" },
+  "Output is +2% vs plan, but Line B changeover is dragging OEE. Ask me to explain a loss, find the bottleneck, or recommend actions.": { th: "ผลผลิต +2% เทียบกับแผน แต่การเปลี่ยนรุ่น Line B กำลังฉุด OEE ถามฉันให้อธิบายการสูญเสีย หาคอขวด หรือแนะนำการดำเนินการได้", ja: "産出は計画比+2%ですが、Line Bの段取り替えがOEEを押し下げています。損失の説明、ボトルネックの特定、対策の提案をお申し付けください。", zh: "产出较计划+2%，但Line B换型正拖累OEE。可让我解释某项损失、找出瓶颈或建议措施。" },
+  "Explain today's OEE loss": { th: "อธิบายการสูญเสีย OEE ของวันนี้", ja: "本日のOEE損失を説明", zh: "解释今日的OEE损失" },
   "Explain the biggest downtime event": { th: "อธิบายเหตุการณ์ดาวน์ไทม์ที่ใหญ่ที่สุด", ja: "最大のダウンタイムイベントを説明", zh: "解释最大的停机事件" },
   "Explain the scrap rate": { th: "อธิบายอัตราเศษเสีย", ja: "スクラップ率を説明", zh: "解释废品率" },
   "Where is the bottleneck?": { th: "คอขวดอยู่ที่ไหน?", ja: "ボトルネックはどこ?", zh: "瓶颈在哪里?" },

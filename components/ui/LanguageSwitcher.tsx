@@ -5,7 +5,7 @@ import { useI18n } from "@/lib/i18n";
 import { LOCALES } from "@/lib/dict";
 import { cn } from "@/lib/utils";
 
-/** Cycles EN → TH → JA → ZH → EN on each click (no dropdown). */
+/** Toggles EN ↔ TH on each click (no dropdown). */
 export function LanguageSwitcher({ className }: { className?: string }) {
   const { locale, setLocale } = useI18n();
   const idx = Math.max(0, LOCALES.findIndex((l) => l.code === locale));

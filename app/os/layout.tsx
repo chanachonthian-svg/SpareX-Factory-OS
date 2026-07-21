@@ -1,4 +1,8 @@
 import { Sidebar } from "@/components/os/Sidebar";
+import { DemoLeadGate } from "@/components/os/DemoLeadGate";
+import { PackageBanner } from "@/components/os/PackageBanner";
+import { UsageTracker } from "@/components/os/UsageTracker";
+import { SupportWidget } from "@/components/os/SupportWidget";
 
 export default function OsLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -11,6 +15,10 @@ export default function OsLayout({ children }: { children: React.ReactNode }) {
       </div>
       <Sidebar />
       <div className="min-w-0 flex-1">{children}</div>
+      <DemoLeadGate />
+      <PackageBanner />
+      <UsageTracker />
+      <SupportWidget />
     </div>
   );
 }

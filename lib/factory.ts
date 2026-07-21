@@ -226,9 +226,9 @@ export type FlowNode = {
 export type FlowLink = { from: string; to: string };
 
 export const flowNodes: FlowNode[] = [
-  { id: "grid", label: "Grid", tier: 0, kw: 2840 },
-  { id: "substation", label: "Substation", tier: 1, kw: 2840 },
-  { id: "mdb", label: "MDB", tier: 2, kw: 2810 },
+  { id: "grid", label: "Grid", tier: 0, kw: 1292 },
+  { id: "substation", label: "Substation", tier: 1, kw: 1292 },
+  { id: "mdb", label: "MDB", tier: 2, kw: 1255 },
   { id: "prod", label: "Production", tier: 3, kw: 587, row: 0 },
   { id: "util", label: "Facility", tier: 3, kw: 668, row: 1 },
 ];
@@ -240,11 +240,21 @@ export const flowLinks: FlowLink[] = [
   { from: "mdb", to: "util" },
 ];
 
-export type TwinLayer = "health" | "predictive" | "energy" | "carbon";
+export type TwinLayer = "health" | "predictive" | "energy" | "carbon" | "cost";
 
 export const twinLayers: { id: TwinLayer; label: string; hint: string }[] = [
   { id: "health", label: "Asset Health", hint: "Green · Yellow · Red status" },
   { id: "predictive", label: "Predictive Risk", hint: "Machines likely to fail" },
   { id: "energy", label: "Energy Flow", hint: "Live power draw per asset" },
   { id: "carbon", label: "Carbon", hint: "CO₂ emissions intensity" },
+  { id: "cost", label: "Cost Burn", hint: "฿ burning per hour, per asset" },
 ];
+
+/** ฿ an asset is burning per hour vs its healthy baseline — excess power from
+ *  degraded condition (blended tariff ฿4.2/kWh) plus a risk-weighted downtime
+ *  premium for warning/critical machines. */
+export function assetBurnPerHr(a: Asset): number {
+  const excessPct = a.status === "critical" ? 0.16 : a.status === "warning" ? 0.07 : 0.015;
+  const riskPremium = a.status === "critical" ? 380 : a.status === "warning" ? 120 : 0;
+  return Math.round(a.powerKw * excessPct * 4.2 + riskPremium);
+}

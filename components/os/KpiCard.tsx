@@ -1,5 +1,7 @@
 import { ArrowUpRight, ArrowDownRight, type LucideIcon } from "lucide-react";
 import { Sparkline } from "@/components/ui/Sparkline";
+import { Icon3D } from "@/components/os/Icon3D";
+import { LiveBadge } from "@/components/os/LiveBadge";
 import { cn } from "@/lib/utils";
 
 export function KpiCard({
@@ -29,30 +31,27 @@ export function KpiCard({
       />
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          {Icon ? (
-            <span
-              className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border"
-              style={{ color: accent, borderColor: `${accent}44`, backgroundColor: `${accent}14` }}
-            >
-              <Icon size={14} />
-            </span>
-          ) : null}
+          {Icon ? <Icon3D icon={Icon} color={accent} size={30} rounded={10} /> : null}
           <p className="truncate text-[11px] font-medium uppercase tracking-wider text-white/45">
             {label}
           </p>
         </div>
         {delta ? (
-          <span
-            className={cn(
-              "inline-flex items-center gap-0.5 whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
-              deltaGood
-                ? "bg-status-ok/15 text-emerald-300"
-                : "bg-status-crit/15 text-rose-300",
-            )}
-          >
-            {deltaGood ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />}
-            {delta}
-          </span>
+          delta.toLowerCase() === "live" || delta === "สด" ? (
+            <LiveBadge size="sm" />
+          ) : (
+            <span
+              className={cn(
+                "inline-flex items-center gap-0.5 whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                deltaGood
+                  ? "bg-status-ok/15 text-emerald-300"
+                  : "bg-status-crit/15 text-rose-300",
+              )}
+            >
+              {deltaGood ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />}
+              {delta}
+            </span>
+          )
         ) : null}
       </div>
       <p className="mt-2 text-2xl font-semibold tracking-tight tabular">

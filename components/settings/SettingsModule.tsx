@@ -123,7 +123,7 @@ function CriticalitySection() {
         <div className="flex flex-wrap items-center gap-3 border-b border-white/10 p-5">
           <Shield size={18} className="text-slate-300" />
           <div className="min-w-0">
-            <h3 className="font-semibold">{tr("Machine criticality")}</h3>
+            <h3 className="font-semibold">{tr("Machine Criticality")}</h3>
             <p className="mt-0.5 text-xs text-white/45">{tr("Classify machines · Critical are protected from AI auto-management")}</p>
           </div>
           <div className="ml-auto flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5">
@@ -201,7 +201,7 @@ function TariffSection() {
 
   return (
     <div className="space-y-6">
-      <Card icon={Coins} title={tr("Electricity tariff")} subtitle={tr("These rates power Peak & Cost and the Tariff Optimizer.")}
+      <Card icon={Coins} title={tr("Electricity Tariff")} subtitle={tr("These rates power Peak & Cost and the Tariff Optimizer.")}
         extra={<button onClick={() => setSaved(true)} className={cn("btn px-3.5 py-2 text-xs", saved ? "border border-emerald-400/30 bg-emerald-400/10 text-emerald-200" : "btn-glow")}>{saved ? <><Check size={13} /> {tr("Saved")}</> : tr("Save changes")}</button>}>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <label className="block">
@@ -259,7 +259,7 @@ function AutomationSection() {
 
   return (
     <div className="space-y-6">
-      <Card icon={Sparkles} title={tr("Autonomy level")} subtitle={tr("How much the AI is allowed to do on its own — applies to all managers.")}>
+      <Card icon={Sparkles} title={tr("Autonomy Level")} subtitle={tr("How much the AI is allowed to do on its own — applies to all managers.")}>
         <div className="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
           {AUTONOMY.map((lv, i) => (
             <button key={lv.l} onClick={() => upd({ autonomy: i })} className={cn("flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition", s.autonomy === i ? "bg-brand-400/15 text-brand-200" : "text-white/50 hover:text-white/80")}>{tr(lv.l)}</button>
@@ -268,7 +268,7 @@ function AutomationSection() {
         <p className="mt-3 text-sm text-white/60">{tr(AUTONOMY[s.autonomy].d)}</p>
       </Card>
 
-      <Card icon={ShieldCheck} title={tr("Guardrails · always on")} subtitle={tr("Hard limits the AI can never cross.")}>
+      <Card icon={ShieldCheck} title={tr("Guardrails")} subtitle={tr("Always on · hard limits the AI can never cross")}>
         <div className="space-y-3">
           <div className="flex items-center gap-3 rounded-xl border border-white/8 bg-white/[0.02] p-3">
             <ShieldCheck size={16} className="shrink-0 text-emerald-300" />
@@ -293,7 +293,7 @@ function AutomationSection() {
         </div>
       </Card>
 
-      <Card icon={Zap} title={tr("Manager defaults")} subtitle={tr("Starting values for the Peak, Idle and Load-shift managers.")}>
+      <Card icon={Zap} title={tr("Manager Defaults")} subtitle={tr("Starting values for the Peak, Idle and Load-shift managers.")}>
         <div className="grid gap-4 sm:grid-cols-3">
           <NumField label={tr("Idle threshold")} value={s.idleMin} onChange={(v) => upd({ idleMin: v })} suffix={tr("min")} />
           <NumField label={tr("Peak demand target")} value={s.peakTarget} onChange={(v) => upd({ peakTarget: v })} suffix="kW" step={50} />
@@ -336,7 +336,7 @@ function NotificationsSection() {
 
   return (
     <div className="space-y-6">
-      <Card icon={Bell} title={tr("Notification channels")} subtitle={tr("Where alerts are delivered.")}>
+      <Card icon={Bell} title={tr("Notification Channels")} subtitle={tr("Where alerts are delivered.")}>
         <div className="space-y-3">
           {channel(s.email, "email", Mail, "Email", smallInput(s.emailAddr, (x) => upd({ emailAddr: x }), "name@company.com"))}
           {channel(s.line, "line", MessageSquare, "LINE", smallInput(s.lineId, (x) => upd({ lineId: x }), "@line-oa"))}
@@ -345,7 +345,7 @@ function NotificationsSection() {
         </div>
       </Card>
 
-      <Card icon={Bell} title={tr("Alert me about")} subtitle={tr("Which events trigger a notification.")}>
+      <Card icon={Bell} title={tr("Alert Me About")} subtitle={tr("Which events trigger a notification.")}>
         <div className="grid gap-3 sm:grid-cols-2">
           {alertRow(s.peak, "peak", tr("Peak demand breach"))}
           {alertRow(s.pq, "pq", tr("Power-quality events (sag/swell)"))}
@@ -354,7 +354,7 @@ function NotificationsSection() {
         </div>
       </Card>
 
-      <Card icon={Clock} title={tr("Quiet hours")} subtitle={tr("Hold non-critical alerts during these hours.")}
+      <Card icon={Clock} title={tr("Quiet Hours")} subtitle={tr("Hold non-critical alerts during these hours.")}
         extra={<Toggle on={s.quiet} onClick={() => upd({ quiet: !s.quiet })} />}>
         <div className={cn("flex items-center gap-2 transition", s.quiet ? "opacity-100" : "opacity-40")}>
           <input value={s.quietFrom} onChange={(e) => upd({ quietFrom: e.target.value })} className="w-24 rounded-lg border border-white/10 bg-white/[0.02] px-2.5 py-2 text-center text-sm tabular text-white/90 focus:outline-none" />
@@ -392,6 +392,8 @@ const PERMS = [
 
 function UsersSection() {
   const tr = useTr();
+  const { locale } = useI18n();
+  const L = (o: { en: string; th: string }) => (locale === "th" ? o.th : o.en);
   const [users, setUsers] = useState(SEED_USERS);
   const setRole = (id: string, role: string) => setUsers((p) => p.map((u) => (u.id === id ? { ...u, role } : u)));
 
@@ -400,7 +402,7 @@ function UsersSection() {
       <div className="panel overflow-hidden p-0">
         <div className="flex flex-wrap items-center gap-3 border-b border-white/10 p-5">
           <Users size={18} className="text-slate-300" />
-          <div><h3 className="font-semibold">{tr("Team & access")}</h3><p className="mt-0.5 text-xs text-white/45">{tr("Who can view, approve and execute in this plant.")}</p></div>
+          <div><h3 className="font-semibold">{tr("Team & Access")}</h3><p className="mt-0.5 text-xs text-white/45">{tr("Who can view, approve and execute in this plant.")}</p></div>
           <button className="btn-glow ml-auto px-3.5 py-2 text-xs"><Users size={13} /> {tr("Invite user")}</button>
         </div>
         <div className="overflow-x-auto">
@@ -426,7 +428,7 @@ function UsersSection() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card icon={ShieldCheck} title={tr("What each role can do")}>
+        <Card icon={ShieldCheck} title={tr("What Each Role Can Do")}>
           <div className="space-y-2">
             {PERMS.map((p) => (
               <div key={p.role} className="flex items-start gap-3 rounded-xl border border-white/8 bg-white/[0.02] p-3">
@@ -436,7 +438,7 @@ function UsersSection() {
             ))}
           </div>
         </Card>
-        <Card icon={Clock} title={tr("Recent activity · audit trail")}>
+        <Card icon={Clock} title={tr("Recent Activity")} subtitle={L({ en: "Who changed what, and when", th: "ใครแก้อะไร เมื่อไหร่" })}>
           <ul className="space-y-3">
             {AUDIT.map((e, i) => (
               <li key={i} className="flex gap-3 border-b border-white/5 pb-3 text-xs last:border-0 last:pb-0">
@@ -471,7 +473,7 @@ function BrandingSection() {
       <div className="flex items-center gap-2.5">
         <Building2 size={18} className="text-brand-300" />
         <div>
-          <h3 className="font-semibold">{L({ en: "Company & branding", th: "บริษัท & แบรนด์" })}</h3>
+          <h3 className="font-semibold">{L({ en: "Company & Branding", th: "บริษัท & แบรนด์" })}</h3>
           <p className="mt-0.5 text-xs text-white/45">{L({ en: "Your logo and name appear on every exported PDF report", th: "โลโก้และชื่อบริษัทจะแสดงบนรายงาน PDF ทุกฉบับ" })}</p>
         </div>
       </div>

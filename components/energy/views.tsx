@@ -33,20 +33,25 @@ const consumers = [
 
 function Panel({
   title,
+  sub,
   icon: Icon,
   children,
 }: {
   title: string;
+  sub?: string;
   icon: typeof Gauge;
   children: React.ReactNode;
 }) {
   return (
     <section className="panel p-5">
-      <div className="mb-4 flex items-center gap-2">
-        <span className="grid h-9 w-9 place-items-center rounded-lg border border-brand-400/25 bg-brand-400/10 text-brand-300">
+      <div className="mb-4 flex min-w-0 items-center gap-2">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-brand-400/25 bg-brand-400/10 text-brand-300">
           <Icon size={17} />
         </span>
-        <h2 className="font-semibold text-white">{title}</h2>
+        <div className="min-w-0">
+          <h2 className="truncate font-semibold leading-tight text-white">{title}</h2>
+          {sub ? <p className="mt-0.5 truncate text-[11px] leading-tight text-white/40">{sub}</p> : null}
+        </div>
       </div>
       {children}
     </section>
@@ -86,7 +91,7 @@ export function LiveView() {
   const tr = useTr();
   return (
     <div className="space-y-6">
-      <Panel title={tr("Live oscilloscope · disturbance detection")} icon={Activity}>
+      <Panel title={tr("Live Oscilloscope")} sub={tr("disturbance detection")} icon={Activity}>
         <div className="grid min-h-[320px] place-items-center rounded-xl border border-white/10 bg-[#07101f]">
           <div className="w-full max-w-5xl px-6">
             <AreaTrend data={powerTrend} dataKey="v" color="#22d3ee" height={260} />
@@ -102,7 +107,7 @@ export function PowerQualityView() {
   const tr = useTr();
   return (
     <div className="space-y-6">
-      <Panel title={tr("Power quality intelligence")} icon={Waves}>
+      <Panel title={tr("Power Quality Intelligence")} icon={Waves}>
         <div className="grid gap-4 md:grid-cols-3">
           {[
             [tr("Voltage sag"), "76%", "#f43f5e"],

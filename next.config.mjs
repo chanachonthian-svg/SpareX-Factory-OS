@@ -10,6 +10,9 @@ const nextConfig = {
   // Type-checking (tsc) remains the build-time correctness gate; ESLint is run
   // separately via `npm run lint` so stylistic rules never block a deploy.
   eslint: { ignoreDuringBuilds: true },
+  // SKIP_TYPECHECK=1 lets small servers (1GB EC2) build without the tsc pass
+  // OOM-ing — tsc still gates locally before any deploy.
+  typescript: { ignoreBuildErrors: process.env.SKIP_TYPECHECK === "1" },
 };
 
 export default nextConfig;

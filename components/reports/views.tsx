@@ -7,10 +7,10 @@ import { AskCopilot } from "@/components/os/AskCopilot";
 import { useTr } from "@/lib/autotranslate";
 import { oeeTrend, costPerUnit, series } from "@/lib/telemetry";
 
-function Panel({ title, extra, children }: { title?: string; extra?: React.ReactNode; children: React.ReactNode }) {
+function Panel({ title, sub, extra, children }: { title?: string; sub?: string; extra?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="panel p-6">
-      {title ? <div className="mb-4 flex items-center justify-between gap-3"><h3 className="font-semibold">{title}</h3>{extra}</div> : null}
+      {title ? <div className="mb-4 flex items-center justify-between gap-3"><div className="min-w-0"><h3 className="font-semibold leading-tight text-white">{title}</h3>{sub ? <p className="mt-0.5 truncate text-[11px] leading-tight text-white/40">{sub}</p> : null}</div>{extra}</div> : null}
       {children}
     </div>
   );
@@ -36,8 +36,8 @@ export function ExecDashboardView() {
         <KpiCard label={tr("Carbon")} value="404" unit="kg/h" delta="1.5%" deltaGood accent="#4ade80" />
       </div>
       <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title={tr("OEE · 30-day")}><AreaTrend data={oee} dataKey="v" color="#34d399" unit="%" /></Panel>
-        <Panel title={tr("Energy cost / unit · 30-day")}><AreaTrend data={cpu} dataKey="cost" color="#22d3ee" unit="฿" /></Panel>
+        <Panel title={tr("OEE")} sub={tr("Is the plant getting more efficient")}><AreaTrend data={oee} dataKey="v" color="#34d399" unit="%" /></Panel>
+        <Panel title={tr("Energy Cost / Unit")} sub={tr("Is each unit getting cheaper to make")}><AreaTrend data={cpu} dataKey="cost" color="#22d3ee" unit="฿" /></Panel>
       </div>
     </div>
   );
@@ -55,7 +55,7 @@ const KPIS = [
 export function KpiReportsView() {
   const tr = useTr();
   return (
-    <Panel title={tr("KPI reports")} extra={<AskCopilot prompt="Generate a KPI report pack" className="btn-ghost px-3 py-1.5 text-xs"><Sparkles size={13} /> {tr("Generate")}</AskCopilot>}>
+    <Panel title={tr("KPI Reports")} extra={<AskCopilot prompt="Generate a KPI report pack" className="btn-ghost px-3 py-1.5 text-xs"><Sparkles size={13} /> {tr("Generate")}</AskCopilot>}>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {KPIS.map((k) => (
           <div key={k.name} className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
@@ -76,10 +76,10 @@ export function TrendsView() {
   const carbon = series(31, 30, { base: 420, amp: 18, trend: -40 }).map((v, i) => ({ t: `${i + 1}`, v: Math.round(v) }));
   return (
     <div className="space-y-6">
-      <Panel title={tr("OEE trend · 30-day")}><AreaTrend data={oee} dataKey="v" color="#34d399" unit="%" height={220} /></Panel>
+      <Panel title={tr("OEE Trend")} sub={tr("Is efficiency climbing or slipping")}><AreaTrend data={oee} dataKey="v" color="#34d399" unit="%" height={220} /></Panel>
       <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title={tr("Cost / unit trend")}><AreaTrend data={cpu} dataKey="cost" color="#22d3ee" unit="฿" height={200} /></Panel>
-        <Panel title={tr("Carbon intensity trend")}><AreaTrend data={carbon} dataKey="v" color="#4ade80" height={200} /></Panel>
+        <Panel title={tr("Cost / Unit Trend")}><AreaTrend data={cpu} dataKey="cost" color="#22d3ee" unit="฿" height={200} /></Panel>
+        <Panel title={tr("Carbon Intensity Trend")}><AreaTrend data={carbon} dataKey="v" color="#4ade80" height={200} /></Panel>
       </div>
     </div>
   );
@@ -90,10 +90,10 @@ export function BenchmarkView() {
   const tr = useTr();
   return (
     <div className="space-y-6">
-      <Panel title={tr("Output by line · vs target")}><HBars data={outputByLine} color="#34d399" /></Panel>
+      <Panel title={tr("Output By Line")} sub={tr("vs target")}><HBars data={outputByLine} color="#34d399" /></Panel>
       <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title={tr("OEE by line")}><HBars data={[{ name: "Line A", value: 78 }, { name: "Line B", value: 71 }, { name: "Line C", value: 82 }, { name: "Line D", value: 74 }]} color="#22d3ee" /></Panel>
-        <Panel title={tr("Cost / unit by line")}><HBars data={[{ name: "Line A", value: 11.2 }, { name: "Line B", value: 13.4 }, { name: "Line C", value: 10.6 }, { name: "Line D", value: 12.1 }]} color="#818cf8" /></Panel>
+        <Panel title={tr("OEE By Line")}><HBars data={[{ name: "Line A", value: 78 }, { name: "Line B", value: 71 }, { name: "Line C", value: 82 }, { name: "Line D", value: 74 }]} color="#22d3ee" /></Panel>
+        <Panel title={tr("Cost / Unit By Line")}><HBars data={[{ name: "Line A", value: 11.2 }, { name: "Line B", value: 13.4 }, { name: "Line C", value: 10.6 }, { name: "Line D", value: 12.1 }]} color="#818cf8" /></Panel>
       </div>
     </div>
   );
@@ -122,7 +122,7 @@ export function ExportView() {
   const tr = useTr();
   return (
     <div className="space-y-6">
-      <Panel title={tr("Generate & export")}>
+      <Panel title={tr("Generate & Export")}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {templates.map((tpl) => (
             <div key={tpl.name} className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">

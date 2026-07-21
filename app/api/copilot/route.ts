@@ -4,14 +4,13 @@ import type { Locale } from "@/lib/dict";
 
 export const runtime = "nodejs";
 
-const LOCALES: Locale[] = ["en", "th", "ja", "zh"];
+// JA/ZH dropped from the product 2026-07-13 — Copilot now answers in EN/TH only
+const LOCALES: Locale[] = ["en", "th"];
 
 function normalizeLocale(input: unknown, message = ""): Locale {
   const text = message.toLowerCase();
   if (/\b(english|อังกฤษ)\b/u.test(text)) return "en";
   if (/\b(thai|ภาษาไทย|ไทย)\b/u.test(text)) return "th";
-  if (/\b(japanese|ญี่ปุ่น)\b/u.test(text)) return "ja";
-  if (/\b(chinese|mandarin|จีน)\b/u.test(text)) return "zh";
   if (/[\u0E00-\u0E7F]/u.test(message)) return "th";
   if (/[\u3040-\u30FF]/u.test(message)) return "ja";
   if (/[\u4E00-\u9FFF]/u.test(message)) return "zh";

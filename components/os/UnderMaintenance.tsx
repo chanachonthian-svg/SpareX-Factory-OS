@@ -19,9 +19,10 @@ export function UnderMaintenance({
           <span className="absolute -right-1 -top-1 h-3.5 w-3.5 rounded-full bg-amber-400" />
         </div>
 
-        <h2 className="mt-8 text-xl font-semibold tracking-tight text-white">
-          {feature} · Under Maintenance
+        <h2 className="mt-8 text-xl font-semibold leading-tight tracking-tight text-white">
+          {feature}
         </h2>
+        <p className="mt-0.5 truncate text-[11px] leading-tight text-white/40">Under Maintenance</p>
 
         <p className="mx-auto mt-4 max-w-lg text-sm leading-relaxed text-white/55">
           {th

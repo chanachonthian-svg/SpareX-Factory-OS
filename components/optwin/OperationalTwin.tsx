@@ -1,38 +1,39 @@
 "use client";
 
-import { Boxes, Network, Wrench, LayoutGrid, FlaskConical } from "lucide-react";
+import { useState } from "react";
 import { useI18n } from "@/lib/i18n";
-import { useTr } from "@/lib/autotranslate";
-import { ModuleWorkspace, type WsGroup } from "@/components/os/ModuleWorkspace";
+import { WorkflowBar } from "@/components/os/WorkflowNav";
+import { TwinReportStep } from "./TwinReportStep";
+import { TwinActionStep } from "./TwinActionStep";
 import * as V from "./views";
 
-// these sub-modules are temporarily under maintenance — the originals (e.g.
-// V.ProcessFlowTwinView / V.UtilityTwinView / …) are kept for easy restoration.
-const maint = (feature: string) => function MaintView() { return <V.UnderMaintenance feature={feature} />; };
-const MAINT_IDS = ["flow", "utilities", "heatmap", "sim"];
+type LZ = { en: string; th: string };
 
-const VIEWS = {
-  factory: V.MapView,
-  flow: maint("Process Flow"),
-  utilities: maint("Utilities"),
-  heatmap: maint("Heatmap"),
-  sim: maint("Simulation"),
-};
-
+/** Operational Twin — the standard FactoryOS 5-step workflow:
+ *  01 Monitor (live 3D twin) → 02 Insight → 03 AI Analysis →
+ *  04 AI Recommendation & Action (Zero-Invest / Invest) → 05 Report builder. */
 export function OperationalTwin() {
-  const { t } = useI18n();
-  const tr = useTr();
-  const groups: WsGroup[] = [
-    {
-      label: "",
-      items: [
-        { id: "factory", icon: Boxes, label: tr("Factory View") },
-        { id: "flow", icon: Network, label: tr("Process Flow") },
-        { id: "utilities", icon: Wrench, label: tr("Utilities") },
-        { id: "heatmap", icon: LayoutGrid, label: tr("Heatmap") },
-        { id: "sim", icon: FlaskConical, label: tr("Simulation") },
-      ],
-    },
-  ];
-  return <ModuleWorkspace groups={groups} views={VIEWS} defaultId="factory" maintenanceIds={MAINT_IDS} title={t("nav.twin")} titleIcon={Boxes} />;
+  const { locale } = useI18n();
+  const L = (o: LZ) => (locale === "th" ? o.th : o.en);
+  const [step, setStep] = useState(0);
+
+  return (
+    <div className="space-y-6">
+      <WorkflowBar step={step} setStep={setStep} L={L} />
+
+      {step === 0 && <V.MapView />}
+      {step === 1 && <V.TwinInsightView />}
+      {step === 2 && (
+        <div className="space-y-6">
+          {/* what-if first — trying decisions in the twin before the real plant
+              is the analysis customers buy this module for */}
+          <V.SimulationView onPlan={() => setStep(3)} />
+          <V.AIInsightsView onAct={() => setStep(3)} />
+          <V.TwinRootCauseCard onAct={() => setStep(3)} onSee3d={() => setStep(0)} />
+        </div>
+      )}
+      {step === 3 && <TwinActionStep />}
+      {step === 4 && <TwinReportStep />}
+    </div>
+  );
 }

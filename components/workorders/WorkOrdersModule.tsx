@@ -205,7 +205,7 @@ function OwnerCell({ line, teams, people, L }: { line?: string; teams: Team[]; p
   const team = person ? teamOfPerson(person.id, teams) : undefined;
   if (!person) {
     return (
-      <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[12px] text-white/40" title={L({ en: "no engineer covers this section — assign one under Departments", th: "ยังไม่มีช่างดูแลส่วนนี้ — มอบหมา·ี่แท็บแผนกดูแล" })}>
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[12px] text-white/40" title={L({ en: "no engineer covers this section — assign one under Departments", th: "ยังไม่มีช่างดูแลส่วนนี้ — มอบหมายที่แท็บแผนกดูแล" })}>
         <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-dashed border-white/25"><UserPlus size={12} /></span>
         {L({ en: "Unassigned", th: "ยังไม่มอบหมาย" })}
       </span>
@@ -324,7 +324,7 @@ function CalendarView({ orders, tr, L }: { orders: WorkOrder[]; tr: (s: string) 
         <div className="panel p-4">
           <div className="mb-3 flex items-center gap-2">
             <span className="grid h-7 w-7 place-items-center rounded-lg border border-brand-400/30 bg-brand-400/10 text-brand-300"><ListChecks size={14} /></span>
-            <h3 className="font-semibold">{tr("To-do list")}</h3>
+            <h3 className="font-semibold">{tr("To-Do List")}</h3>
           </div>
           {SECTIONS.some((s) => buckets[s.key].length > 0) ? (
             <div className="space-y-4">

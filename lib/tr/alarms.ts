@@ -9,7 +9,7 @@ export const alarmsDict: TrDict = {
   "Mean Time to Ack": { th: "เวลาเฉลี่ยจนรับทราบ", ja: "平均確認時間", zh: "平均确认时间" },
 
   // —— panel header ——
-  "Alarm stream": { th: "รา·ารเตือนสด", ja: "アラームストリーム", zh: "报警流" },
+  "Alarm Stream": { th: "รายการเตือนปัจจุบัน", ja: "アラームストリーム", zh: "报警流" },
   "Cross-module events · AI-prioritized": { th: "เหตุการณ์ข้ามโมดูล · จัดลำดับด้วย AI", ja: "モジュール横断イベント · AI優先順位付け", zh: "跨模块事件 · AI优先级排序" },
 
   // —— filter chips (lowercase, CSS-capitalized) ——

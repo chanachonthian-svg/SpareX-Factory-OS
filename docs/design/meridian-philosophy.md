@@ -1,0 +1,15 @@
+# Meridian — a design philosophy
+
+**Movement name:** Meridian
+
+## Manifesto
+
+Meridian is the daylight discipline: color re-measured for a white ground, the way a lighting engineer re-reads every surface once the sun is overhead. A palette tuned for darkness is not a palette that survives daylight — a pastel that glows against ink turns to vapour against paper. Meridian holds that every hue owes the eye the same *debt of contrast* whether it sits on black or on white, and that debt must be paid deliberately, channel by channel, with the painstaking attention of someone calibrating an instrument against a reference standard. Nothing is left to a global filter; each tone is set by hand, weighed against its ground, and proven legible before it earns its place.
+
+Color is a covenant with contrast. The semantic system never changes — cyan is the live carrier, indigo is where the machine reasons, emerald is the closed and verified, graphite is the quiet not-yet — but on white each of these must *descend* into saturation rather than float above it. The airy cyan becomes deep teal; the soft indigo becomes ink-blue violet; the mint emerald becomes forest green. The eye should feel the same three signals it knew in the dark, only now pressed firmly into the page. This is the master's move: preserve the meaning, re-forge the pigment. Two calibrated intensities per hue, never a wash — the product of deep expertise, not a slider dragged toward "darker."
+
+Form is quiet architecture on a bright field. Where darkness let a shape exist by glowing, daylight demands that shape exist by *edge and weight*. Dividers firm up from whispers to hairlines of real slate; a token that was a pale film of white light becomes a considered tint of cool grey with a defined border; a dot that vanished into near-black gains a ring dark enough to read at arm's length. The dormant and the upcoming — the elements most prone to disappearing on white — are given the most careful hand, because an instrument that only shows its active state is not an instrument, it is a lamp.
+
+Rhythm and hierarchy are set by depth of ink, not brightness of glow. On black, importance rose toward white; on white, importance sinks toward black. Titles carry near-black slate; the working muted line steps up from a barely-there grey to a slate with genuine body, so the subtitle that explains a card can actually be read without leaning in. The active stage still breaks the plane, but now its lift is drawn with a soft grey shadow and a saturated bezel rather than a halo of light. Every falloff, every border radius, every baseline must match across the whole system — consistency across states is the craft, and the difference between amateur and master is whether the fifth, faintest element was labored over as hard as the first.
+
+The finished palette must feel like it was measured, not merely inverted: an artifact where a glance in full daylight tells you, without a legend, what is live, what is thinking, what is done, and what still waits — each reading true from across the room. If a tone cannot prove its contrast against its own ground, it does not belong in daylight.

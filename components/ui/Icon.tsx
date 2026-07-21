@@ -16,6 +16,10 @@ import {
   Gauge,
   Settings,
   ClipboardCheck,
+  CalendarClock,
+  Bell,
+  Waves,
+  Wind,
   type LucideIcon,
 } from "lucide-react";
 import type { IconName } from "@/lib/site";
@@ -37,7 +41,11 @@ const MAP: Record<IconName, LucideIcon> = {
   iot: Cpu,
   apm: Gauge,
   workorder: ClipboardCheck,
+  event: CalendarClock,
+  notification: Bell,
   settings: Settings,
+  pq: Waves,
+  air: Wind,
 };
 
 export function Icon({

@@ -15,6 +15,11 @@ export const reportsDict: TrDict = {
   "Asset Health": { th: "สุขภาพสินทรัพย์", ja: "資産ヘルス", zh: "资产健康度" },
   "Carbon": { th: "คาร์บอน", ja: "炭素", zh: "碳排放" },
 
+  // —— panel subtitles (function-describing) ——
+  "Is the plant getting more efficient": { th: "โรงงานมีประสิทธิภาพขึ้นไหม", ja: "工場の効率は上がっているか", zh: "工厂效率是否在提升" },
+  "Is each unit getting cheaper to make": { th: "ต้นทุนต่อชิ้นถูกลงหรือเปล่า", ja: "1個あたりのコストは下がっているか", zh: "单位成本是否在下降" },
+  "Is efficiency climbing or slipping": { th: "ประสิทธิภาพกำลังดีขึ้นหรือแย่ลง", ja: "効率は上向きか下向きか", zh: "效率是在上升还是下滑" },
+
   // —— panel titles ——
   "OEE · 30-day": { th: "OEE · 30 วัน", ja: "OEE · 30日", zh: "OEE · 30天" },
   "Energy cost / unit · 30-day": { th: "ต้นทุนพลังงาน / หน่วย · 30 วัน", ja: "エネルギーコスト / 単位 · 30日", zh: "单位能源成本 · 30天" },

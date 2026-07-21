@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   Sparkles, Volume2, Square, MessageSquare, AlertTriangle, ArrowRight, Printer,
@@ -71,8 +72,9 @@ export function ExecutiveBriefing() {
   const [dateStr, setDateStr] = useState("");
   const [role, setRole] = useState<ExecRole>("CEO");
   const [decided, setDecided] = useState<Record<string, "approved" | "delegated" | "prevented">>({});
-  const [scLine, setScLine] = useState("b");
-  const [scDays, setScDays] = useState(2);
+  // watchlist card: "about to break" and "opportunities" share one card as tabs —
+  // they're both just sources feeding the Decisions queue above
+  const [watch, setWatch] = useState<"break" | "opp">("break");
 
   useEffect(() => {
     setDateStr(new Date().toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }));
@@ -175,12 +177,6 @@ export function ExecutiveBriefing() {
   const actualPct = Math.round((production.actualMtd / production.target) * 100);
   const shortfall = production.target - production.projectedMonthEnd;
 
-  // scenario math
-  const line = scenarioLines.find((l) => l.id === scLine)!;
-  const revLoss = line.dailyRevenue * scDays;
-  const slaSlip = Math.max(0, scDays - line.slaBufferDays);
-  const carbonAvoided = line.carbonPerDay * scDays;
-
   const decide = (id: string, kind: "approved" | "delegated" | "prevented") => setDecided((p) => ({ ...p, [id]: kind }));
 
   return (
@@ -276,7 +272,7 @@ export function ExecutiveBriefing() {
 
         {/* Production vs plan */}
         <div className="mt-8">
-          <SectionHead n="01" title={L({ en: "Will we hit the month?", th: "เดือนนี้จะทำยอดทันไหม?" })} extra={<span className={cn("chip whitespace-nowrap tabular", projPct >= 100 ? "text-emerald-300" : "text-amber-300")}>{L({ en: "projected", th: "คาดการณ์" })} {projPct}%</span>} />
+          <SectionHead n="01" title={L({ en: "Will We Hit The Month?", th: "เดือนนี้จะทำยอดทันไหม?" })} extra={<span className={cn("chip whitespace-nowrap tabular", projPct >= 100 ? "text-emerald-300" : "text-amber-300")}>{L({ en: "projected", th: "คาดการณ์" })} {projPct}%</span>} />
           <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
@@ -301,7 +297,7 @@ export function ExecutiveBriefing() {
 
         {/* Decision Queue — incidents sorted by ฿, approvable inline */}
         <div className="mt-8" data-section="decisions">
-          <SectionHead n="02" title={L({ en: "Decisions today", th: "ต้องตัดสินใจวันนี้" })} extra={<span className="chip whitespace-nowrap text-white/45">{L({ en: "sorted by ฿ impact", th: "เรียงตามผลกระทบ ฿" })}</span>} />
+          <SectionHead n="02" title={L({ en: "Decisions Today", th: "ต้องตัดสินใจวันนี้" })} extra={<span className="chip whitespace-nowrap text-white/45">{L({ en: "sorted by ฿ impact", th: "เรียงตามผลกระทบ ฿" })}</span>} />
           <div className="space-y-2">
             {execIncidents.map((c) => {
               const d = decided[c.id];
@@ -337,11 +333,24 @@ export function ExecutiveBriefing() {
           </div>
         </div>
 
-        {/* Predictive Horizon + Opportunities */}
-        <div className="mt-8 grid gap-7 lg:grid-cols-2">
-          <div>
-            <SectionHead n="03" title={L({ en: "About to break · 7 days", th: "กำลังจะพังใน 7 วัน" })} />
-            <div className="space-y-2">
+        {/* Watchlist — the two raw feeds behind the Decisions queue, one card, two tabs */}
+        <div className="mt-8">
+          <SectionHead
+            n="03"
+            title={L({ en: "Watchlist", th: "จับตาวันนี้" })}
+            extra={
+              <div className="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
+                <button onClick={() => setWatch("break")} className={cn("whitespace-nowrap rounded-md px-2.5 py-1 text-[12px] font-medium transition", watch === "break" ? "bg-white/10 text-white" : "text-white/45 hover:text-white/75")}>
+                  {L({ en: "About to break · 7d", th: "กำลังจะพัง · 7 วัน" })} <span className="tabular text-rose-300">{execPredictions.length}</span>
+                </button>
+                <button onClick={() => setWatch("opp")} className={cn("whitespace-nowrap rounded-md px-2.5 py-1 text-[12px] font-medium transition", watch === "opp" ? "bg-white/10 text-white" : "text-white/45 hover:text-white/75")}>
+                  {L({ en: "Opportunities", th: "โอกาส" })} <span className="tabular text-emerald-300">+{thbCompact(execActions.reduce((s, a) => s + a.roiYr, 0))}/{L({ en: "yr", th: "ปี" })}</span>
+                </button>
+              </div>
+            }
+          />
+          {watch === "break" ? (
+            <div className="grid gap-2 lg:grid-cols-2">
               {execPredictions.map((p) => {
                 const d = decided[p.id];
                 return (
@@ -365,11 +374,8 @@ export function ExecutiveBriefing() {
                 );
               })}
             </div>
-          </div>
-
-          <div>
-            <SectionHead n="04" title={L({ en: "Today's opportunities", th: "โอกาสวันนี้" })} extra={<span className="chip whitespace-nowrap text-emerald-300">+{thbCompact(execActions.reduce((s, a) => s + a.roiYr, 0))}/{L({ en: "yr", th: "ปี" })}</span>} />
-            <div className="space-y-2">
+          ) : (
+            <div className="grid gap-2 lg:grid-cols-2">
               {execActions.map((a) => {
                 const d = decided[a.id];
                 return (
@@ -389,19 +395,19 @@ export function ExecutiveBriefing() {
                 );
               })}
             </div>
-          </div>
+          )}
         </div>
 
-        {/* Benchmark + Scenario simulator */}
-        <div className="mt-8 grid gap-7 lg:grid-cols-[1fr_1.3fr]">
+        {/* Benchmark (compact) + pointer to the real what-if simulators */}
+        <div className="mt-8 grid gap-7 lg:grid-cols-[1.3fr_1fr]">
           <div>
-            <SectionHead n="05" title={L({ en: "Benchmark", th: "เทียบกับเกณฑ์" })} />
+            <SectionHead n="04" title={L({ en: "Benchmark", th: "เทียบกับเกณฑ์" })} />
             <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
               <p className="text-[11px] text-white/45">{L({ en: "Health vs other plants", th: "สุขภาพเทียบโรงอื่น" })}</p>
               <div className="mt-2.5 space-y-2">
                 {[...benchmark.plants].sort((a, b) => b.health - a.health).map((pl) => (
                   <div key={pl.id} className="flex items-center gap-2.5">
-                    <span className={cn("w-20 shrink-0 truncate text-[12px]", pl.self ? "font-semibold text-white/85" : "text-white/55")}>{L(pl.name)}{pl.self ? " ●" : ""}</span>
+                    <span className={cn("w-20 shrink-0 break-words leading-tight text-[12px]", pl.self ? "font-semibold text-white/85" : "text-white/55")}>{L(pl.name)}{pl.self ? " ●" : ""}</span>
                     <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/8">
                       <div className={cn("h-full rounded-full", pl.self ? "bg-brand-400" : "bg-white/25")} style={{ width: `${pl.health}%` }} />
                     </div>
@@ -413,34 +419,22 @@ export function ExecutiveBriefing() {
           </div>
 
           <div>
-            <SectionHead n="06" title={L({ en: "Scenario · what if?", th: "จำลองสถานการณ์ · ถ้าเกิด?" })} />
-            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[12px] text-white/55">{L({ en: "If", th: "ถ้า" })}</span>
-                <div className="flex items-center gap-0.5 rounded-lg border border-white/10 bg-white/[0.02] p-0.5">
-                  {scenarioLines.map((l) => (
-                    <button key={l.id} onClick={() => setScLine(l.id)} className={cn("rounded-md px-2 py-0.5 text-[12px] font-medium transition", scLine === l.id ? "bg-white/10 text-white/90" : "text-white/45 hover:text-white/70")}>{L(l.name)}</button>
-                  ))}
-                </div>
-                <span className="text-[12px] text-white/55">{L({ en: "stops for", th: "หยุด" })}</span>
-                <span className="tabular text-sm font-semibold text-white/90">{scDays} {L({ en: "days", th: "วัน" })}</span>
+            <SectionHead n="05" title={L({ en: "Scenario · What If?", th: "จำลองสถานการณ์ · ถ้าเกิด?" })} />
+            <div className="flex h-[calc(100%-2.25rem)] flex-col justify-between rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+              <p className="text-[12.5px] leading-relaxed text-white/60">
+                {L({
+                  en: "Try decisions before the real plant pays for them — toggle fixes and watch today's plan recover in Production Intelligence, or stress-test the whole plant in the Digital Twin.",
+                  th: "ลองตัดสินใจก่อนของจริงต้องจ่าย — ติ๊กแก้ทีละเรื่องแล้วดูแผนวันนี้ฟื้นใน Production Intelligence หรือทดสอบทั้งโรงงานใน Digital Twin",
+                })}
+              </p>
+              <div className="no-print mt-3 flex flex-wrap gap-2">
+                <Link href="/os/production" className="btn-glow px-3.5 py-2 text-[12.5px]">
+                  <PlayCircle size={14} /> {L({ en: "What-if · Production", th: "จำลองการผลิต" })} <ArrowRight size={13} />
+                </Link>
+                <Link href="/os/twin" className="rounded-lg border border-white/12 bg-white/5 px-3.5 py-2 text-[12.5px] text-white/70 transition hover:bg-white/10">
+                  {L({ en: "What-if · Digital Twin", th: "จำลองทั้งโรงงาน · Twin" })}
+                </Link>
               </div>
-              <input type="range" min={1} max={7} step={1} value={scDays} onChange={(e) => setScDays(+e.target.value)} className="mt-2.5 w-full accent-brand-400" />
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                <div className="rounded-xl border border-rose-400/20 bg-rose-500/[0.06] p-2.5 text-center">
-                  <p className="text-[10px] uppercase tracking-wider text-white/40">{L({ en: "Revenue", th: "รายได้" })}</p>
-                  <p className="mt-0.5 tabular text-base font-semibold text-rose-300">−{thbCompact(revLoss)}</p>
-                </div>
-                <div className={cn("rounded-xl border p-2.5 text-center", slaSlip > 0 ? "border-amber-400/20 bg-amber-500/[0.06]" : "border-white/10 bg-white/[0.02]")}>
-                  <p className="text-[10px] uppercase tracking-wider text-white/40">{L({ en: "Delivery SLA", th: "ส่งมอบ SLA" })}</p>
-                  <p className={cn("mt-0.5 tabular text-base font-semibold", slaSlip > 0 ? "text-amber-300" : "text-emerald-300")}>{slaSlip > 0 ? `+${slaSlip} ${L({ en: "d late", th: "วันช้า" })}` : L({ en: "on time", th: "ตรงเวลา" })}</p>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-2.5 text-center">
-                  <p className="text-[10px] uppercase tracking-wider text-white/40">{L({ en: "Carbon", th: "คาร์บอน" })}</p>
-                  <p className="mt-0.5 tabular text-base font-semibold text-white/70">−{carbonAvoided} <span className="text-[10px] font-normal">tCO₂</span></p>
-                </div>
-              </div>
-              <button onClick={() => openCopilot(`Model the full impact if ${L(line.name)} stops for ${scDays} days`)} className="no-print mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/12 bg-white/5 px-3 py-1.5 text-[12px] text-white/70 transition hover:bg-white/10"><PlayCircle size={13} /> {L({ en: "Run full model in Copilot", th: "รันโมเดลเต็มใน Copilot" })}</button>
             </div>
           </div>
         </div>
@@ -458,7 +452,7 @@ export function ExecutiveBriefing() {
         </div>
 
         {missingVoice || voiceNotice ? (
-          <p className="no-print mt-3 text-[11px] leading-relaxed text-amber-300/80">{voiceNotice || "ไม่พบเสียงไทยในเบราว์เซอร์ จึงใช้ไฟล์เสียงไท·ี่สร้างไว้ให้แล้ว กดปุ่มเพื่อฟังได้เลย"}</p>
+          <p className="no-print mt-3 text-[11px] leading-relaxed text-amber-300/80">{voiceNotice || "ไม่พบเสียงไทยในเบราว์เซอร์ จึงใช้ไฟล์เสียงไทยที่สร้างไว้ให้แล้ว กดปุ่มเพื่อฟังได้เลย"}</p>
         ) : null}
       </div>
     </motion.section>

@@ -21,7 +21,7 @@ type Tr = Record<"th" | "ja" | "zh", string>;
 
 const DICT: Record<string, Tr> = {
   // —— panel titles ——
-  "Live oscilloscope · disturbance detection": { th: "ออสซิลโลสโคปสด · ตรวจจับความผิดปกติ", ja: "ライブオシロスコープ · 外乱検出", zh: "实时示波器 · 扰动检测" },
+  "Live oscilloscope · disturbance detection": { th: "ออสซิลโลสโคปเรียลไทม์ · ตรวจจับความผิดปกติ", ja: "ライブオシロスコープ · 外乱検出", zh: "实时示波器 · 扰动检测" },
   "Three-phase balance": { th: "สมดุลสามเฟส", ja: "三相バランス", zh: "三相平衡" },
   "Harmonic spectrum": { th: "สเปกตรัมฮาร์มอนิก", ja: "高調波スペクトル", zh: "谐波频谱" },
   "Power triangle & correction": { th: "สามเหลี่ยมกำลัง & การแก้ไข", ja: "電力三角形と補正", zh: "功率三角形与校正" },
@@ -37,7 +37,7 @@ const DICT: Record<string, Tr> = {
   "Frequency": { th: "ความถี่", ja: "周波数", zh: "频率" },
 
   // —— chips / misc ——
-  "live · incomer": { th: "สด · จุดรับไฟ", ja: "ライブ · 引込", zh: "实时 · 进线" },
+  "live · incomer": { th: "ขณะนี้ · จุดรับไฟ", ja: "ライブ · 引込", zh: "实时 · 进线" },
   "% of fundamental": { th: "% ของมูลฐาน", ja: "基本波比%", zh: "基波百分比" },
   "last 24h": { th: "24 ชม.ล่าสุด", ja: "直近24時間", zh: "近24小时" },
   "outside envelope": { th: "หลุดกรอบ", ja: "包絡線外", zh: "超出包络" },
@@ -52,7 +52,7 @@ const DICT: Record<string, Tr> = {
   "Flicker": { th: "ไฟกระพริบ", ja: "フリッカ", zh: "闪变" },
   "Transient": { th: "ไฟกระชาก", ja: "トランジェント", zh: "瞬变" },
   "Freeze": { th: "หยุดภาพ", ja: "静止", zh: "冻结" },
-  "Live": { th: "สด", ja: "ライブ", zh: "实时" },
+  "Live": { th: "ขณะนี้", ja: "ライブ", zh: "实时" },
   "Thresholds": { th: "เกณฑ์เตือน", ja: "しきい値", zh: "阈值" },
   "Auto-sim": { th: "จำลองอัตโนมัติ", ja: "自動シム", zh: "自动模拟" },
   "Alarms": { th: "การเตือน", ja: "アラーム", zh: "报警" },
@@ -139,7 +139,7 @@ const DICT: Record<string, Tr> = {
   "EVENT DURATION (LOG SCALE)": { th: "ระยะเวลาเหตุการณ์ (log)", ja: "イベント継続時間 (対数)", zh: "事件持续时间 (对数)" },
   "Interruption": { th: "ไฟดับชั่วขณะ", ja: "瞬断", zh: "中断" },
   "outside tolerance → equipment at risk": { th: "หลุดพิสัย → อุปกรณ์เสี่ยง", ja: "許容外 → 機器リスク", zh: "超出容差 → 设备风险" },
-  "Points below the red curve (sag) or above the amber curve (swell) fall outside ride-through tolerance — the L2 motor-start sag (76%, 120 ms) and the 80 ms interruption risk PLC/contactor drop-out. See the AI analysis below for the root cause and fixes.": { th: "จุดที่ต่ำกว่าเส้นแดง (ไฟตก) หรือสูงกว่าเส้นเหลือง (ไฟเกิน) หลุดพิสั·ี่อุปกรณ์ทนได้ — ไฟตกตอนสตาร์ท Motor L2 (76%, 120 ms) และไฟดับ 80 ms เสี่ยงทำ PLC/คอนแทกเตอร์หลุด ดูการวิเคราะห์ AI ด้านล่างสำหรับต้นตอและวิธีแก้", ja: "赤曲線より下(サグ)または黄曲線より上(スウェル)の点はライドスルー許容外 — L2始動サグ(76%, 120ms)と80ms瞬断はPLC/接触器の脱落リスク。下のAI分析で原因と対策を参照。", zh: "低于红线(暂降)或高于黄线(暂升)的点超出穿越容差 — L2电机启动暂降(76%, 120ms)和80ms中断有PLC/接触器脱扣风险。见下方AI分析了解原因与对策。" },
+  "Points below the red curve (sag) or above the amber curve (swell) fall outside ride-through tolerance — the L2 motor-start sag (76%, 120 ms) and the 80 ms interruption risk PLC/contactor drop-out. See the AI analysis below for the root cause and fixes.": { th: "จุดที่ต่ำกว่าเส้นแดง (ไฟตก) หรือสูงกว่าเส้นเหลือง (ไฟเกิน) หลุดพิสัยที่อุปกรณ์ทนได้ — ไฟตกตอนสตาร์ท Motor L2 (76%, 120 ms) และไฟดับ 80 ms เสี่ยงทำ PLC/คอนแทกเตอร์หลุด ดูการวิเคราะห์ AI ด้านล่างสำหรับต้นตอและวิธีแก้", ja: "赤曲線より下(サグ)または黄曲線より上(スウェル)の点はライドスルー許容外 — L2始動サグ(76%, 120ms)と80ms瞬断はPLC/接触器の脱落リスク。下のAI分析で原因と対策を参照。", zh: "低于红线(暂降)或高于黄线(暂升)的点超出穿越容差 — L2电机启动暂降(76%, 120ms)和80ms中断有PLC/接触器脱扣风险。见下方AI分析了解原因与对策。" },
 
   // —— disturbance cards ——
   "Voltage Sags": { th: "ไฟตก", ja: "電圧サグ", zh: "电压暂降" },
@@ -179,7 +179,7 @@ const DICT: Record<string, Tr> = {
   "PQ score": { th: "คะแนน PQ", ja: "PQスコア", zh: "PQ评分" },
   "power quality is healthy.": { th: "คุณภาพไฟฟ้าอยู่ในเกณฑ์ดี", ja: "電力品質は良好です。", zh: "电能质量良好。" },
   "A": { th: "การใส่", ja: "", zh: "加装" },
-  "kVAR bank lifts PF to 0.99 and cuts": { th: "kVAR จะ· PF เป็น 0.99 และลดได้", ja: "kVARバンクで力率0.99へ改善し削減", zh: "kVAR电容组将力率提升至0.99并节省" },
+  "kVAR bank lifts PF to 0.99 and cuts": { th: "kVAR จะยก PF เป็น 0.99 และลดได้", ja: "kVARバンクで力率0.99へ改善し削減", zh: "kVAR电容组将力率提升至0.99并节省" },
   "in demand charges. Current THD is nearing the IEEE-519 limit — worth watching.": { th: "ต่อค่าดีมานด์/ปี · กระแส THD กำลังเข้าใกล้ลิมิต IEEE-519 — ควรเฝ้าระวัง", ja: "/年 のデマンド料金。電流THDがIEEE-519上限に接近 — 要監視。", zh: "/年 需量电费。电流THD接近IEEE-519限值 — 需关注。" },
 };
 

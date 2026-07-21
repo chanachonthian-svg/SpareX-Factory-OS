@@ -11,10 +11,10 @@ import { prodContent, leafLabel, outputByLine } from "@/lib/production";
 import { useTr } from "@/lib/autotranslate";
 
 /* helpers */
-function Panel({ title, extra, children }: { title?: string; extra?: React.ReactNode; children: React.ReactNode }) {
+function Panel({ title, sub, extra, children }: { title?: string; sub?: string; extra?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="panel p-6">
-      {title ? <div className="mb-4 flex items-center justify-between gap-3"><h3 className="font-semibold">{title}</h3>{extra}</div> : null}
+      {title ? <div className="mb-4 flex items-center justify-between gap-3"><div className="min-w-0"><h3 className="font-semibold leading-tight">{title}</h3>{sub ? <p className="mt-0.5 truncate text-[11px] leading-tight text-white/40">{sub}</p> : null}</div>{extra}</div> : null}
       {children}
     </div>
   );
@@ -89,10 +89,10 @@ export function ExecutiveOverview() {
         </p>
       </div>
       <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title={tr("OEE · 30-day trend")} extra={<span className="chip text-emerald-300">+38% YoY</span>}>
+        <Panel title={tr("OEE")} sub={tr("Is OEE climbing or slipping")} extra={<span className="chip text-emerald-300">+38% YoY</span>}>
           <AreaTrend data={oee} dataKey="v" color="#34d399" unit="%" height={240} />
         </Panel>
-        <Panel title={tr("Output by line · today")}>
+        <Panel title={tr("Output By Line")} sub={tr("Which line is leading or lagging")}>
           <HBars data={outputByLine} color="#34d399" />
         </Panel>
       </div>
@@ -120,7 +120,7 @@ export function OeeDashboard() {
           </div>
         ))}
       </div>
-      <Panel title={tr("OEE composition · 30-day")} extra={<span className="chip">A × P × Q</span>}>
+      <Panel title={tr("OEE Composition")} sub={tr("Which factor drags OEE down")} extra={<span className="chip">A × P × Q</span>}>
         <AreaTrend data={oee} dataKey="v" color="#34d399" unit="%" height={260} />
       </Panel>
     </div>
@@ -171,7 +171,7 @@ export function WhatIfSim() {
   const profitGain = Math.round(changeover * 5200 + scrap * 3100 + shift * 9000);
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      <Panel title={tr("What-if scenario")}>
+      <Panel title={tr("What-If Scenario")}>
         <div className="space-y-5">
           <Slider label={tr("Cut Line B changeover")} value={changeover} onChange={setChangeover} />
           <Slider label={tr("Reduce scrap")} value={scrap} onChange={setScrap} />
@@ -179,7 +179,7 @@ export function WhatIfSim() {
         </div>
         <p className="mt-5 text-xs leading-relaxed text-white/45">{tr("The simulator replays today's production model through your scenario.")}</p>
       </Panel>
-      <Panel title={tr("Projected impact")}>
+      <Panel title={tr("Projected Impact")}>
         <div className="grid grid-cols-1 gap-4">
           <div className="rounded-2xl border border-status-ok/25 bg-status-ok/[0.07] p-4"><p className="text-[11px] uppercase tracking-wider text-white/45">{tr("Profit gain · monthly")}</p><p className="mt-1 text-3xl font-semibold tabular text-emerald-300">{formatTHB(profitGain * 30)}</p></div>
           <div className="grid grid-cols-2 gap-4">

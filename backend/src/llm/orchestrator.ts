@@ -79,7 +79,7 @@ export async function runCopilotAgent(db: Queryable, sessionId: string, message:
       const hasNumericClaim = /[\d๐-๙]/u.test(text);
       if (hasNumericClaim && !usedToolThisTurn) {
         emit("delta", {
-          text: "ขอโทษครับ ผมไม่สามารถรายงานตัวเลขโดยไม่เรี·ใช้ข้อมูลจากระบบโรงงานได้ กรุณาถามใหม่ในขอบเขตการปฏิบัติการโรงงาน แล้วผมจะตรวจสอบผ่านเครื่องมือก่อนตอบครับ",
+          text: "ขอโทษครับ ผมไม่สามารถรายงานตัวเลขโดยไม่เรียกใช้ข้อมูลจากระบบโรงงานได้ กรุณาถามใหม่ในขอบเขตการปฏิบัติการโรงงาน แล้วผมจะตรวจสอบผ่านเครื่องมือก่อนตอบครับ",
         });
         emit("done", { session_id: sessionId, stop_reason: "guardrail_no_tool_for_numbers" });
         return;

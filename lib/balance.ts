@@ -79,7 +79,7 @@ export function classifyBalance(inp: BalanceInput): PqFinding[] {
       },
       cause: {
         en: "A small voltage unbalance drives a large negative-sequence current in motors, adding heat — a ~3.5% unbalance can raise winding temperature ~25% and shorten motor life",
-        th: "แรงดันไม่สมดุลเล็กน้อ·ำให้เกิดกระแสลำดับลบในมอเตอร์สูงมาก เพิ่มความร้อน — ไม่สมดุล ~3.5% อาจทำอุณหภูมิขดลวดขึ้น ~25% และลดอายุมอเตอร์",
+        th: "แรงดันไม่สมดุลเล็กน้อยทำให้เกิดกระแสลำดับลบในมอเตอร์สูงมาก เพิ่มความร้อน — ไม่สมดุล ~3.5% อาจทำอุณหภูมิขดลวดขึ้น ~25% และลดอายุมอเตอร์",
       },
       fix: {
         en: "Fix the current balance first; if it persists, check terminations / tighten the connection on the low-voltage phase, or raise it with the utility",

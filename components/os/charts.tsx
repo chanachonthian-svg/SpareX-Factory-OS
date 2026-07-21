@@ -19,6 +19,15 @@ import {
 const AXIS = { stroke: "#3a4255", fontSize: 11 };
 const GRID = "rgba(255,255,255,0.05)";
 
+/** Y-axis width that actually fits the longest tick label. The old fixed 42px
+ *  (minus the -16 left margin) left ~26px — values like "1,050 cfm" or
+ *  "6.8 bar" clipped down to just their unit. ~6.4px/char at the 11px axis font. */
+function yAxisWidth(maxVal: number, unit = "") {
+  const label = `${maxVal.toLocaleString(undefined, { maximumFractionDigits: Math.abs(maxVal) < 20 ? 1 : 0 })}${unit}`;
+  return Math.max(42, Math.round(16 + label.length * 6.4 + 10));
+}
+const numOr0 = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+
 const tooltipStyle = {
   contentStyle: {
     background: "rgba(10,12,18,0.95)",
@@ -50,6 +59,7 @@ export function AreaTrend({
   baselineLabel?: string;
 }) {
   const id = `area-${dataKey}-${color.replace("#", "")}`;
+  const yMax = Math.max(...data.map((d) => numOr0(d[dataKey])), baseline ?? 0);
   return (
     <div style={{ width: "100%", height }}>
       <ResponsiveContainer>
@@ -62,7 +72,7 @@ export function AreaTrend({
           </defs>
           <CartesianGrid stroke={GRID} vertical={false} />
           <XAxis dataKey="t" tick={AXIS} tickLine={false} axisLine={false} minTickGap={24} />
-          <YAxis tick={AXIS} tickLine={false} axisLine={false} width={42} unit={unit} />
+          <YAxis tick={AXIS} tickLine={false} axisLine={false} width={yAxisWidth(yMax, unit)} unit={unit} />
           <Tooltip {...tooltipStyle} />
           <Area
             type="monotone"
@@ -95,13 +105,14 @@ export function MultiLine({
   lines: { key: string; color: string; name?: string; dashed?: boolean }[];
   height?: number;
 }) {
+  const yMax = Math.max(...data.flatMap((d) => lines.map((l) => numOr0(d[l.key]))), 0);
   return (
     <div style={{ width: "100%", height }}>
       <ResponsiveContainer>
         <LineChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
           <CartesianGrid stroke={GRID} vertical={false} />
           <XAxis dataKey="t" tick={AXIS} tickLine={false} axisLine={false} minTickGap={24} />
-          <YAxis tick={AXIS} tickLine={false} axisLine={false} width={42} />
+          <YAxis tick={AXIS} tickLine={false} axisLine={false} width={yAxisWidth(yMax)} />
           <Tooltip {...tooltipStyle} />
           {lines.map((l) => (
             <Line
@@ -149,7 +160,7 @@ export function PowerComposed({
           </defs>
           <CartesianGrid stroke={GRID} vertical={false} />
           <XAxis dataKey="t" tick={AXIS} tickLine={false} axisLine={false} minTickGap={28} {...(ticks ? { ticks, interval: 0 as const } : {})} />
-          <YAxis tick={AXIS} tickLine={false} axisLine={false} width={48} />
+          <YAxis tick={AXIS} tickLine={false} axisLine={false} width={yAxisWidth(Math.max(...data.map((d) => numOr0(d.power)), 3000))} />
           <Tooltip {...tooltipStyle} />
           <Area type="step" dataKey="onPeak" stroke="none" fill="url(#onpeak)" isAnimationActive={animate} />
           <Area type="monotone" dataKey="power" stroke="#22d3ee" strokeWidth={2} fill="url(#pwr)" isAnimationActive={animate} />
@@ -163,9 +174,13 @@ export function PowerComposed({
 export function PeakBars({
   data,
   height = 260,
+  domain = [2600, 3300],
+  baseline = 3000,
 }: {
   data: any[];
   height?: number;
+  domain?: [number, number];
+  baseline?: number;
 }) {
   return (
     <div style={{ width: "100%", height }}>
@@ -173,11 +188,11 @@ export function PeakBars({
         <ComposedChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
           <CartesianGrid stroke={GRID} vertical={false} />
           <XAxis dataKey="t" tick={AXIS} tickLine={false} axisLine={false} />
-          <YAxis tick={AXIS} tickLine={false} axisLine={false} width={48} domain={[2600, 3300]} />
+          <YAxis tick={AXIS} tickLine={false} axisLine={false} width={yAxisWidth(domain[1])} domain={domain} />
           <Tooltip {...tooltipStyle} />
           <Bar dataKey="actual" radius={[4, 4, 0, 0]} maxBarSize={26} fill="#22d3ee" />
           <Bar dataKey="forecast" radius={[4, 4, 0, 0]} maxBarSize={26} fill="#818cf8" />
-          <ReferenceLine y={3000} stroke="#f43f5e" strokeDasharray="4 4" />
+          <ReferenceLine y={baseline} stroke="#f43f5e" strokeDasharray="4 4" />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -193,13 +208,15 @@ export function StackedBars({
   bars: { key: string; color: string; name?: string }[];
   height?: number;
 }) {
+  // stacked → the axis peaks at the tallest row TOTAL, not any single series
+  const yMax = Math.max(...data.map((d) => bars.reduce((s, b) => s + numOr0(d[b.key]), 0)), 0);
   return (
     <div style={{ width: "100%", height }}>
       <ResponsiveContainer>
         <BarChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
           <CartesianGrid stroke={GRID} vertical={false} />
           <XAxis dataKey="t" tick={AXIS} tickLine={false} axisLine={false} />
-          <YAxis tick={AXIS} tickLine={false} axisLine={false} width={42} />
+          <YAxis tick={AXIS} tickLine={false} axisLine={false} width={yAxisWidth(yMax)} />
           <Tooltip {...tooltipStyle} />
           {bars.map((b) => (
             <Bar

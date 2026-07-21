@@ -44,7 +44,7 @@ export default function Landing() {
           </Reveal>
           <Reveal delay={0.15}>
             <div className="mt-9 flex flex-wrap items-center gap-3">
-              <Link href="/os" className="btn-glow px-6 py-3 text-base">
+              <Link href="/login" className="btn-glow px-6 py-3 text-base">
                 Launch FactoryOS <ArrowRight size={18} />
               </Link>
               <AskCopilot prompt="What can FactoryOS do for my plant?" className="btn-ghost px-6 py-3 text-base">
@@ -221,7 +221,7 @@ export default function Landing() {
                 title="Every leader, one source of truth"
                 subtitle="From the CEO to the reliability engineer — FactoryOS speaks each leader's language, from the same live data."
               />
-              <Link href="/os" className="btn-glow mt-8 px-5 py-2.5 text-sm">
+              <Link href="/login" className="btn-glow mt-8 px-5 py-2.5 text-sm">
                 Open the Command Center <ArrowRight size={15} />
               </Link>
             </div>
@@ -254,7 +254,7 @@ export default function Landing() {
                 {brand.mission}
               </p>
               <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-                <Link href="/os" className="btn-glow px-6 py-3 text-base">
+                <Link href="/login" className="btn-glow px-6 py-3 text-base">
                   Launch FactoryOS <ArrowRight size={18} />
                 </Link>
                 <AskCopilot prompt="Book a plant assessment" className="btn-ghost px-6 py-3 text-base">

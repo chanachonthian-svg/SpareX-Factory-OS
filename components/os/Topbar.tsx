@@ -5,6 +5,7 @@ import { openCopilot } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { LiveBadge } from "@/components/os/LiveBadge";
 
 export function Topbar({
   title,
@@ -26,13 +27,7 @@ export function Topbar({
       </div>
 
       <div className="ml-auto flex items-center gap-2.5">
-        <span className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/60 sm:flex">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-status-ok opacity-60" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-status-ok" />
-          </span>
-          {t("topbar.live")}
-        </span>
+        <span className="hidden sm:inline-flex"><LiveBadge /></span>
 
         <button className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/55 transition hover:text-white/80 md:flex">
           <span className="grid h-4 w-4 place-items-center rounded bg-brand-400/20 text-[9px] font-bold text-brand-300">

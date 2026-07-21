@@ -17,7 +17,7 @@ export const twinDict: TrDict = {
   "Healthy": { th: "ปกติ", ja: "正常", zh: "健康" },
   "Warning": { th: "เตือน", ja: "警告", zh: "警告" },
   "Critical": { th: "วิกฤต", ja: "重大", zh: "严重" },
-  "assets streaming": { th: "กำลังรับข้อมูลสด", ja: "資産をストリーミング中", zh: "台资产实时传输" },
+  "assets streaming": { th: "กำลังสตรีมข้อมูล", ja: "資産をストリーミング中", zh: "台资产实时传输" },
   "Production Hall": { th: "โรงผลิต", ja: "生産ホール", zh: "生产车间" },
   "Facility & Utility": { th: "อาคารและระบบสนับสนุน", ja: "施設・ユーティリティ", zh: "设施与公用工程" },
   "machines · avg OEE": { th: "เครื่องจักร · OEE เฉลี่ย", ja: "台 · 平均OEE", zh: "台设备 · 平均OEE" },
@@ -33,7 +33,7 @@ export const twinDict: TrDict = {
 
   // —— Energy twin view ——
   "Total Draw": { th: "การใช้ไฟรวม", ja: "総消費電力", zh: "总用电" },
-  "Energy by asset · live kW": { th: "พลังงานตามสินทรัพย์ · kW สด", ja: "資産別エネルギー · ライブkW", zh: "各资产能耗 · 实时kW" },
+  "Which machines pull the most power": { th: "เครื่องไหนกินไฟมากสุด", ja: "電力を最も使う設備はどれか", zh: "哪些设备用电最多" },
 
   // —— Asset twin view ——
   "Asset health register": { th: "สุขภาพเครื่องจักรทั้งหมด", ja: "資産ヘルス台帳", zh: "资产健康台账" },
@@ -50,17 +50,17 @@ export const twinDict: TrDict = {
 
   // —— Carbon twin view ——
   "Total CO₂": { th: "CO₂ รวม", ja: "総CO₂", zh: "总CO₂" },
-  "Top carbon emitters · kg/h": { th: "แหล่งปล่อยคาร์บอนสูงสุด · kg/h", ja: "主要CO₂排出源 · kg/h", zh: "碳排放最高设备 · kg/h" },
+  "Where to cut CO₂ first": { th: "ควรลดคาร์บอนที่ไหนก่อน", ja: "どこからCO₂を削減すべきか", zh: "先从哪里减碳" },
 
   // —— Financial twin view ——
   "Risk Exposure": { th: "มูลค่าความเสี่ยง", ja: "リスクエクスポージャー", zh: "风险敞口" },
   "Savings Found": { th: "โอกาสประหยัดที่พบ", ja: "発見された節約", zh: "发现的节省" },
   "Energy Cost": { th: "ต้นทุนพลังงาน", ja: "エネルギーコスト", zh: "能源成本" },
-  "Value at risk · by issue": { th: "มูลค่าที่เสี่ยง · แ·ตามปัญหา", ja: "リスク価値 · 問題別", zh: "在险价值 · 按问题" },
-  "Daily energy cost · top assets": { th: "ต้นทุนพลังงานรายวัน · สินทรัพย์สูงสุด", ja: "日次エネルギーコスト · 上位資産", zh: "每日能源成本 · 高耗资产" },
+  "What each open issue could cost": { th: "แต่ละปัญหาเสี่ยงเสียเงินเท่าไร", ja: "各問題でいくら失う可能性があるか", zh: "每个问题可能损失多少" },
+  "Which assets cost the most to run": { th: "เครื่องไหนค่าไฟแพงสุด", ja: "運転コストが最も高い設備はどれか", zh: "哪些设备运行成本最高" },
 
   // —— Process flow twin view ——
-  "Process & energy flow · Grid → Equipment": { th: "การไหลของกระบวนการและพลังงาน · กริด → เครื่องจักร", ja: "プロセス・エネルギーフロー · 系統 → 設備", zh: "工艺与能量流 · 电网 → 设备" },
+  "Live power flow, grid to machine": { th: "ดูไฟไหลจากกริดถึงเครื่องจักร", ja: "系統から設備への電力の流れ", zh: "电网到设备的实时电力流" },
   "Grid": { th: "กริด", ja: "系統", zh: "电网" },
   "Substation": { th: "สถานีไฟฟ้าย่อย", ja: "変電所", zh: "变电站" },
   "Utility": { th: "ระบบสนับสนุน", ja: "ユーティリティ", zh: "公用工程" },
@@ -89,7 +89,7 @@ export const twinDict: TrDict = {
   "Ask AI to plan the rollout": { th: "ให้ AI วางแผนการติดตั้งใช้งาน", ja: "AIに展開計画を依頼", zh: "让AI规划推行方案" },
 
   // —— AI insights view ——
-  "AI insights · across the twin": { th: "ข้อมูลเชิงลึก AI · ทั่วทั้งทวิน", ja: "AIインサイト · ツイン全体", zh: "AI洞察 · 覆盖整个孪生" },
+  "What's worth acting on right now": { th: "สิ่งที่ควรลงมือทำตอนนี้", ja: "今すぐ対応すべきこと", zh: "现在最该处理的事" },
   "Ask the Copilot for the full picture": { th: "ถาม Copilot เพื่อดูภาพรวมทั้งหมด", ja: "全体像はCopilotに質問", zh: "向副驾驶询问全貌" },
   "Line B is the OEE bottleneck": { th: "ไลน์ B เป็นคอขวดของ OEE", ja: "ラインBがOEEのボトルネック", zh: "B线是OEE瓶颈" },
   "Changeover losses on Line B cost ~฿15k/day. Rebalancing to Line A recovers ~4 pts of plant OEE.": { th: "การสูญเสียตอนเปลี่ยนงานที่ไลน์ B คิดเป็น ~฿15k/วัน · ปรับสมดุลไปไลน์ A จะกู้ OEE ทั้งโรงงานได้ ~4 จุด", ja: "ラインBの段取りロスは約฿15k/日。ラインAへ再配分で工場OEEを約4pt回復。", zh: "B线换型损失约฿15k/天。重新分配至A线可恢复约4个百分点的全厂OEE。" },
@@ -100,7 +100,7 @@ export const twinDict: TrDict = {
   "Carbon intensity down 8% YoY": { th: "ความเข้มคาร์บอนลดลง 8% เทียบปีก่อน", ja: "カーボン原単位が前年比8%減", zh: "碳强度同比下降8%" },
   "Scope 2 reductions are on track for the FY decarbonization target.": { th: "การลด Scope 2 เป็นไปตามเป้าลดคาร์บอนของปีงบประมาณ", ja: "スコープ2削減は年度脱炭素目標に沿って進行中。", zh: "范围2减排按财年脱碳目标推进。" },
   "฿6.2M total risk exposure": { th: "ความเสี่ยงรวม ฿6.2M", ja: "総リスクエクスポージャー ฿6.2M", zh: "总风险敞口 ฿6.2M" },
-  "Four open risks concentrate in utilities — addressing Chiller B removes the largest.": { th: "ความเสี่ยงที่เปิดอยู่สี่รา·ารกระจุกในระบบสนับสนุน — จัดการ Chiller B จะกำจัดตัวใหญ่สุด", ja: "4件の未対応リスクがユーティリティに集中 — Chiller B対応で最大を解消。", zh: "四项未决风险集中于公用工程 — 处理Chiller B可消除最大项。" },
+  "Four open risks concentrate in utilities — addressing Chiller B removes the largest.": { th: "ความเสี่ยงที่เปิดอยู่สี่รายการกระจุกในระบบสนับสนุน — จัดการ Chiller B จะกำจัดตัวใหญ่สุด", ja: "4件の未対応リスクがユーティリティに集中 — Chiller B対応で最大を解消。", zh: "四项未决风险集中于公用工程 — 处理Chiller B可消除最大项。" },
 
   // —— Action center view ——
   "Action Center": { th: "ศูนย์ดำเนินการ", ja: "アクションセンター", zh: "操作中心" },
@@ -127,7 +127,7 @@ export const twinDict: TrDict = {
 
   // —— Factory copilot view ——
   "Factory Copilot": { th: "Factory Copilot", ja: "ファクトリーコパイロット", zh: "工厂副驾驶" },
-  "Ask the twin anything — grounded in live data": { th: "ถามทวินได้ทุกเรื่อง — อ้างอิงข้อมูลสด", ja: "ツインに何でも質問 — ライブデータに基づく", zh: "向孪生体提问任何事 — 基于实时数据" },
+  "Ask the twin anything — grounded in live data": { th: "ถามทวินได้ทุกเรื่อง — อ้างอิงข้อมูลปัจจุบัน", ja: "ツインに何でも質問 — ライブデータに基づく", zh: "向孪生体提问任何事 — 基于实时数据" },
   "I have the whole plant modeled — production, energy, assets, carbon and finance. Ask me to explain, simulate, or recommend.": { th: "ฉันจำลองทั้งโรงงานไว้แล้ว — การผลิต พลังงาน สินทรัพย์ คาร์บอน และการเงิน · ถามให้อธิบาย จำลอง หรือแนะนำได้", ja: "工場全体をモデル化済み — 生産・エネルギー・資産・カーボン・財務。説明・シミュレーション・推奨をどうぞ。", zh: "我已建模整个工厂 — 生产、能源、资产、碳排与财务。可让我解释、模拟或推荐。" },
   "What's happening in the factory right now?": { th: "ตอนนี้เกิดอะไรขึ้นในโรงงานบ้าง?", ja: "工場で今何が起きていますか？", zh: "工厂现在正发生什么？" },
   "Which asset needs attention first?": { th: "สินทรัพย์ใดต้องดูแลก่อน?", ja: "最初に対応すべき資産は？", zh: "哪台资产需要优先关注？" },
@@ -143,6 +143,22 @@ export const twinDict: TrDict = {
   // —— DigitalTwin: overlay / loading / hints ——
   "Initializing digital twin…": { th: "กำลังเริ่มต้นดิจิทัลทวิน…", ja: "デジタルツインを初期化中…", zh: "正在初始化数字孪生…" },
   "drag to rotate · scroll to zoom": { th: "ลากเพื่อหมุน · เลื่อนเพื่อซูม", ja: "ドラッグで回転 · スクロールでズーム", zh: "拖动旋转 · 滚动缩放" },
+  "Fullscreen": { th: "ขยายเต็มจอ", ja: "全画面表示", zh: "全屏" },
+  "Exit fullscreen": { th: "ออกจากเต็มจอ", ja: "全画面を終了", zh: "退出全屏" },
+  "War-room mode": { th: "โหมด war-room", ja: "ウォールームモード", zh: "作战室模式" },
+  "Auto-rotate · layers cycle every 8s": { th: "หมุนอัตโนมัติ · สลับเลเยอร์ทุก 8 วิ", ja: "自動回転 · 8秒ごとにレイヤー切替", zh: "自动旋转 · 每8秒切换图层" },
+
+  // —— DigitalTwin: cost-burn layer ——
+  "Cost Burn": { th: "เงินที่กำลังรั่ว", ja: "コスト損失", zh: "成本流失" },
+  "฿ burning per hour, per asset": { th: "เงินที่รั่วต่อชั่วโมง รายเครื่อง", ja: "資産ごとの毎時損失額", zh: "每台设备每小时流失金额" },
+  "Low burn": { th: "รั่วน้อย", ja: "低損失", zh: "低流失" },
+  "High burn": { th: "รั่วมาก", ja: "高損失", zh: "高流失" },
+  "colour = ฿/hr above healthy baseline": { th: "สี = ฿/ชม. ที่เกินจากสภาพเครื่องปกติ", ja: "色 = 正常時比の฿/時", zh: "颜色 = 高于正常基线的฿/小时" },
+  "Plant burning now": { th: "โรงงานกำลังรั่วเงิน", ja: "工場の現在損失", zh: "工厂当前流失" },
+  "per hr": { th: "ต่อ ชม.", ja: "毎時", zh: "每小时" },
+  "per day": { th: "ต่อวัน", ja: "毎日", zh: "每天" },
+  "Burn now": { th: "เงินรั่วตอนนี้", ja: "現在の損失", zh: "当前流失" },
+  "/hr": { th: "/ชม.", ja: "/時", zh: "/时" },
 
   // —— DigitalTwin: legend labels ——
   "Low": { th: "ต่ำ", ja: "低", zh: "低" },
@@ -166,8 +182,13 @@ export const twinDict: TrDict = {
   "in ~": { th: "ในอีก ~", ja: "あと約", zh: "约还有 " },
   "days — AI recommends a work order now.": { th: "วัน — AI แนะนำให้ออกใบสั่งงานทันที", ja: "日 — AIは今すぐの作業指示を推奨。", zh: "天 — AI建议立即创建工单。" },
   "Click a machine in the 3D view": { th: "คลิกเครื่องจักรในมุมมอง 3D", ja: "3Dビューで機械をクリック", zh: "在3D视图中点击设备" },
-  "Select any asset to inspect its live electrical parameters — power, current, voltage, PF and energy.": { th: "เลือกสินทรัพย์ใดก็ได้เพื่อตรวจพารามิเตอร์ไฟฟ้าสด — กำลังไฟ กระแส แรงดัน PF และพลังงาน", ja: "任意の資産を選択してライブ電気パラメータを確認 — 電力・電流・電圧・PF・エネルギー。", zh: "选择任意资产以查看其实时电气参数 — 功率、电流、电压、PF与能耗。" },
+  "Select any asset to inspect its live electrical parameters — power, current, voltage, PF and energy.": { th: "เลือกสินทรัพย์ใดก็ได้เพื่อตรวจพารามิเตอร์ไฟฟ้าปัจจุบัน — กำลังไฟ กระแส แรงดัน PF และพลังงาน", ja: "任意の資産を選択してライブ電気パラメータを確認 — 電力・電流・電圧・PF・エネルギー。", zh: "选择任意资产以查看其实时电气参数 — 功率、电流、电压、PF与能耗。" },
   "Select an asset to inspect.": { th: "เลือกสินทรัพย์เพื่อตรวจสอบ", ja: "検査する資産を選択してください。", zh: "请选择要检查的资产。" },
   "Factory floor": { th: "พื้นที่โรงงาน", ja: "工場フロア", zh: "车间现场" },
   "Main Distribution": { th: "ตู้จ่ายไฟหลัก", ja: "主配電盤", zh: "总配电" },
+  "Floating labels": { th: "ป้ายข้อมูลลอย", ja: "フローティング表示", zh: "悬浮标签" },
+  "Floating label of": { th: "ป้ายลอยของ", ja: "フローティング表示:", zh: "悬浮标签:" },
+  "Apply to every machine": { th: "ใช้กับทุกเครื่อง", ja: "全機械に適用", zh: "应用到所有设备" },
+  "Hide for this machine": { th: "ซ่อนของเครื่องนี้", ja: "この機械では非表示", zh: "隐藏此设备" },
+  "Pick what floats above this machine": { th: "เลือกว่าจะให้อะไรลอยเหนือเครื่องนี้", ja: "この機械の上に表示する項目を選択", zh: "选择此设备上方显示的数据" },
 };

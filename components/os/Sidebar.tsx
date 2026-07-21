@@ -34,7 +34,7 @@ export function Sidebar() {
     <aside
       className={cn(
         "sticky top-0 z-40 hidden h-screen shrink-0 flex-col border-r border-white/10 bg-ink-900/70 backdrop-blur-xl transition-[width] duration-200 ease-out lg:flex",
-        pinned ? "w-64" : "w-[76px]",
+        pinned ? "w-[296px]" : "w-[76px]",
       )}
     >
       {/* header */}
@@ -62,11 +62,12 @@ export function Sidebar() {
 
       {/* nav */}
       <nav className={cn("flex-1 space-y-0.5 overflow-y-auto py-3", pinned ? "px-3" : "px-2.5")}>
-        {osNav.map((item) => {
+        {osNav.map((item, index) => {
+          const showSection = index === 0 || osNav[index - 1]?.section !== item.section;
           const active = item.href ? (item.href === "/os" ? pathname === "/os" : pathname.startsWith(item.href)) : false;
           const rowClass = cn(
             "group flex rounded-xl text-sm transition",
-            pinned ? "items-start gap-3 px-3 py-2" : "items-center justify-center px-0 py-2.5",
+            pinned ? "items-center gap-3 px-3 py-1.5" : "items-center justify-center px-0 py-2.5",
             active ? "bg-white/[0.07] text-white" : "text-white/55 hover:bg-white/[0.04] hover:text-white/90",
           );
           const inner = (
@@ -84,15 +85,14 @@ export function Sidebar() {
               {pinned ? (
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="flex items-center gap-1.5">
-                    <span className="min-w-0 flex-1 truncate">{t(item.tKey)}</span>
+                    <span className="min-w-0 flex-1 truncate">{item.section === "core" ? item.label : t(item.tKey)}</span>
                     {item.maintenance ? (
                       <span className="shrink-0 rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-300">DEV</span>
                     ) : item.dev ? (
-                      <span className="shrink-0 rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-300">dev</span>
+                      <span className="shrink-0 rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-300">DEV</span>
                     ) : null}
                     {active ? <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: item.maintenance ? "#f59e0b" : item.accent }} /> : null}
                   </span>
-                  {item.subKey ? <span className="truncate text-[10px] leading-tight text-white/40">{t(item.subKey)}</span> : null}
                   {item.poweredBy?.map((p, i) => (
                     <span key={i} className="truncate text-[10px] leading-tight text-white/35">
                       {i === 0 ? "Powered by " : ""}
@@ -104,14 +104,23 @@ export function Sidebar() {
             </>
           );
 
-          return item.action === "copilot" ? (
-            <button key={item.tKey} onClick={() => openCopilot()} title={pinned ? undefined : t(item.tKey)} className={cn(rowClass, "w-full text-left")}>
-              {inner}
-            </button>
-          ) : (
-            <Link key={item.href} href={item.href!} title={pinned ? undefined : t(item.tKey)} className={rowClass}>
-              {inner}
-            </Link>
+          return (
+            <div key={item.tKey}>
+              {showSection && pinned ? (
+                <p className={cn("px-3 pb-1 text-[10px] font-semibold uppercase text-white/30", index > 0 && "pt-4")}>
+                  {item.section === "core" ? "Core Platform" : "Factory Intelligence"}
+                </p>
+              ) : null}
+              {item.action === "copilot" ? (
+                <button onClick={() => openCopilot()} title={pinned ? undefined : item.label} className={cn(rowClass, "w-full text-left")}>
+                  {inner}
+                </button>
+              ) : (
+                <Link href={item.href!} title={pinned ? undefined : item.label} className={rowClass}>
+                  {inner}
+                </Link>
+              )}
+            </div>
           );
         })}
       </nav>

@@ -46,7 +46,7 @@ export const copq = (() => {
   return { scrap, rework, inspection: INSPECTION_COST, downtime: QUALITY_DOWNTIME_COST, claim: CLAIM_COST, today, visible, invisible, yr: today * 300 };
 })();
 export const copqBreakdown: { label: LZ; value: number; visible: boolean }[] = [
-  { label: { en: "Scrap", th: "ของเสี·ิ้ง" }, value: copq.scrap, visible: true },
+  { label: { en: "Scrap", th: "ของเสียทิ้ง" }, value: copq.scrap, visible: true },
   { label: { en: "Rework", th: "งานแก้ไข" }, value: copq.rework, visible: false },
   { label: { en: "Inspection overhead", th: "ต้นทุนการตรวจ" }, value: copq.inspection, visible: false },
   { label: { en: "Quality downtime", th: "หยุดสายจากคุณภาพ" }, value: copq.downtime, visible: false },
@@ -220,7 +220,7 @@ export const rootCauses: RootCause[] = [
     evidence: [
       { en: "Paint runs increased in step with the airflow dropping 11% this month", th: "สีย้อยเพิ่มขึ้นสอดคล้องกับลมดูดที่อ่อนลง 11% ในเดือนนี้" },
       { en: "Only happens while Paint Booth 14 runs — shift and model make no difference", th: "เกิดเฉพาะช่วงที่ Paint Booth 14 เดิน — กะและรุ่นไม่มีผล" },
-      { en: "Last time the filter was changed, this vanished overnight — the same pattern is repeating", th: "ครั้งก่อนเปลี่ยนไส้กรองแล้วอาการหา·ันที — รูปแบบเดิมกำลังวนกลับมา" },
+      { en: "Last time the filter was changed, this vanished overnight — the same pattern is repeating", th: "ครั้งก่อนเปลี่ยนไส้กรองแล้วอาการหายทันที — รูปแบบเดิมกำลังวนกลับมา" },
     ],
   },
   {
@@ -291,7 +291,7 @@ export const correlations: Correlation[] = [
   { phase: 1, factor: { en: "Product model", th: "รุ่นที่ผลิต" }, strength: 0.58, finding: { en: "Almost half of all defects (42%) are on Model B", th: "เกือบครึ่งของดีเฟกต์ทั้งหมด (42%) มาจากรุ่น Model B" } },
   { phase: 1, factor: { en: "Changeover", th: "การเปลี่ยนรุ่น" }, strength: 0.55, finding: { en: "Defects mostly show up in the first 30 min after a model change", th: "ดีเฟกต์มักโผล่ช่วง 30 นาทีแรกหลังเปลี่ยนรุ่น" } },
   { phase: 2, factor: { en: "Material lot", th: "ล็อตวัตถุดิบ" }, strength: 0, finding: { en: "Link defects to the exact coil lot being fed", th: "โยงดีเฟกต์ถึงล็อตคอยล์ที่ป้อนอยู่ตอนนั้น" }, needs: { en: "scan the lot when loading it (WMS/ERP)", th: "สแกน lot วัตถุดิบตอนโหลดเข้าเครื่อง (WMS/ERP)" } },
-  { phase: 2, factor: { en: "Supplier", th: "ซัพพลายเออร์" }, strength: 0, finding: { en: "See which supplier's material fails more often", th: "เห็นว่าวัตถุดิบของเจ้าไหนทำของเสียบ่อ·ว่า" }, needs: { en: "supplier record per incoming lot (ERP / incoming QC)", th: "ข้อมูลซัพพลายเออร์ต่อล็อตขาเข้า (ERP / QC ขาเข้า)" } },
+  { phase: 2, factor: { en: "Supplier", th: "ซัพพลายเออร์" }, strength: 0, finding: { en: "See which supplier's material fails more often", th: "เห็นว่าวัตถุดิบของเจ้าไหนทำของเสียบ่อยกว่า" }, needs: { en: "supplier record per incoming lot (ERP / incoming QC)", th: "ข้อมูลซัพพลายเออร์ต่อล็อตขาเข้า (ERP / QC ขาเข้า)" } },
   { phase: 2, factor: { en: "Operator / setup", th: "พนักงาน / เซ็ตอัพ" }, strength: 0, finding: { en: "Catch skipped setup verification", th: "จับการข้ามขั้นตอนตรวจเซ็ตอัพ" }, needs: { en: "a digital setup checklist (MES)", th: "เช็คลิสต์เซ็ตอัพแบบดิจิทัล (MES)" } },
   { phase: 2, factor: { en: "Tool wear", th: "การสึกของทูล" }, strength: 0, finding: { en: "See how many strokes before defects start", th: "ดูว่าปั๊มไปกี่ครั้งแล้วดีเฟกต์เริ่มมา" }, needs: { en: "stroke counter from the machine (PLC)", th: "ต่อตัวนับจำนวนปั๊มจากเครื่อง (PLC)" } },
   { phase: 2, factor: { en: "Environment (temp · humidity)", th: "สภาพแวดล้อม (อุณหภูมิ · ความชื้น)" }, strength: 0, finding: { en: "Match paint defects with booth temperature and humidity", th: "จับคู่ดีเฟกต์งานสีกับอุณหภูมิ-ความชื้นในห้องพ่น" }, needs: { en: "IoT environment sensors on the line", th: "เซ็นเซอร์วัดสภาพแวดล้อมที่ไลน์ (IoT)" } },
@@ -355,7 +355,7 @@ export const chainNodeTitles: LZ[] = [
 export const processInsights: { kind: LZ; title: LZ; detail: LZ; sev: "warn" | "crit" | "ok" }[] = [
   { kind: { en: "Bottleneck", th: "คอขวด" }, title: { en: "Press station gates quality", th: "Stamping Press 03 เป็นคอขวดของการตรวจ" }, detail: { en: "The press runs so hard (94%) there is no time to check parts mid-run", th: "เครื่องเดินแน่นถึง 94% จนไม่มีเวลาตรวจชิ้นงานระหว่างผลิต" }, sev: "warn" },
   { kind: { en: "Process drift", th: "ค่ากระบวนการเพี้ยน" }, title: { en: "Die gap widening bit by bit", th: "ช่องว่างดายค่อยๆ ห่างขึ้น" }, detail: { en: "Grows +0.008mm every 1,000 strokes — will cross the limit at ~9,200 strokes", th: "ห่างขึ้น +0.008mm ทุกๆ ปั๊ม 1,000 ครั้ง — อีกราวๆ 9,200 ครั้งจะเกินเกณฑ์" }, sev: "crit" },
-  { kind: { en: "Parameter drift", th: "พารามิเตอร์เลื่อน" }, title: { en: "Paint booth exhaust getting weak", th: "ลมดูดไอเสียห้องพ่นสีอ่อนลง" }, detail: { en: "Airflow down 11% → paint runs are coming", th: "ลมดูดอ่อนลง 11% → สีย้อ·ำลังจะตามมา" }, sev: "warn" },
+  { kind: { en: "Parameter drift", th: "พารามิเตอร์เลื่อน" }, title: { en: "Paint booth exhaust getting weak", th: "ลมดูดไอเสียห้องพ่นสีอ่อนลง" }, detail: { en: "Airflow down 11% → paint runs are coming", th: "ลมดูดอ่อนลง 11% → สีย้อยกำลังจะตามมา" }, sev: "warn" },
   { kind: { en: "Abnormal", th: "ผิดปกติ" }, title: { en: "Night B setup anomaly", th: "เซ็ตอัพกะดึก B ผิดปกติ" }, detail: { en: "Setup done 40% faster than standard — some steps were probably skipped", th: "ตั้งเครื่องเร็วกว่ามาต°านถึง 40% — น่าจะข้ามบางขั้นตอน" }, sev: "warn" },
 ];
 
@@ -401,7 +401,7 @@ export type Action = {
   reduction: number; capex: number; sop: LZ; parts: number;
 };
 export const actions: Action[] = [
-  { id: "die-regrind", priority: "P1", title: { en: "Re-shim & regrind Stamping Press 03 die", th: "ปรับชิม & เจียรดาย Stamping Press 03" }, defectId: "dim", reduction: 62, capex: 85_000, sop: { en: "Add die-clearance check every 8,000 strokes to setup SOP", th: "เพิ่มการเช็คระยะดา·ุก 8,000 สโตรกใน SOP เซ็ตอัพ" }, parts: 1 },
+  { id: "die-regrind", priority: "P1", title: { en: "Re-shim & regrind Stamping Press 03 die", th: "ปรับชิม & เจียรดาย Stamping Press 03" }, defectId: "dim", reduction: 62, capex: 85_000, sop: { en: "Add die-clearance check every 8,000 strokes to setup SOP", th: "เพิ่มการเช็คระยะดายทุก 8,000 สโตรกใน SOP เซ็ตอัพ" }, parts: 1 },
   { id: "supplier-hold", priority: "P1", title: { en: "Inspect & hold the coil lots used in high-defect windows", th: "ตรวจ + กักคอยล์ล็อตที่ใช้ช่วงดีเฟกต์สูง" }, defectId: "dim", reduction: 28, capex: 0, sop: { en: "Add incoming coil-thickness gate at receiving", th: "เพิ่มการตรวจความหนาคอยล์ขาเข้า" }, parts: 0 },
   { id: "paint-exhaust", priority: "P2", title: { en: "Restore Paint Booth 14 exhaust airflow", th: "แก้ลมไอเสีย Paint Booth 14" }, defectId: "paint", reduction: 45, capex: 35_000, sop: { en: "Weekly exhaust-filter ΔP check", th: "เช็ค ΔP กรองไอเสียรายสัปดาห์" }, parts: 1 },
   { id: "night-cert", priority: "P2", title: { en: "Re-certify Night B setup operators", th: "อบรมรับรองพนักงานเซ็ตอัพกะดึก B" }, defectId: "dim", reduction: 22, capex: 0, sop: { en: "Enforce first-article approval before run", th: "บังคับอนุมัติชิ้นแรกก่อนเดินเครื่อง" }, parts: 0 },
@@ -433,7 +433,7 @@ export const reportTemplates: ReportTemplate[] = [
   { id: "system-roi", group: { en: "Executive", th: "ผู้บริหาร" }, name: { en: "System ROI report", th: "รายงาน ROI ของระบบ" }, desc: { en: "value VisionIQ caught vs system cost — the renew/expand decision", th: "มูลค่าที่ระบบจับได้เทียบค่าระบบ — ใช้ตัดสินใจต่ออายุ/ขยาย" }, audience: { en: "owner · executives", th: "เจ้าของ · ผู้บริหาร" }, schedule: "monthly" },
   // engineering
   { id: "root-cause", group: { en: "Engineering", th: "วิศวกรรม" }, name: { en: "AI root-cause report", th: "รายงานรากสาเหตุด้วย AI" }, desc: { en: "cause, evidence & correlations", th: "สาเหตุ หลักฐาน และความสัมพันธ์" }, audience: { en: "engineers", th: "วิศวกร" }, schedule: "off" },
-  { id: "defect-analysis", group: { en: "Engineering", th: "วิศวกรรม" }, name: { en: "Defect analysis report", th: "รายงานวิเคราะห์ดีเฟกต์" }, desc: { en: "Pareto, trend & by-machine breakdown", th: "Pareto เทรนด์ และแ·ตามเครื่อง" }, audience: { en: "engineers · QC", th: "วิศวกร · QC" }, schedule: "off" },
+  { id: "defect-analysis", group: { en: "Engineering", th: "วิศวกรรม" }, name: { en: "Defect analysis report", th: "รายงานวิเคราะห์ดีเฟกต์" }, desc: { en: "Pareto, trend & by-machine breakdown", th: "Pareto เทรนด์ และแยกตามเครื่อง" }, audience: { en: "engineers · QC", th: "วิศวกร · QC" }, schedule: "off" },
   { id: "fix-effect", group: { en: "Engineering", th: "วิศวกรรม" }, name: { en: "Fix effectiveness (before/after)", th: "รายงานผลการแก้ไข (ก่อน/หลัง)" }, desc: { en: "defect rate before vs after each closed work order — proof the fix worked", th: "อัตราดีเฟกต์ก่อน-หลังปิดใบสั่งงาน — พิสูจน์ว่าแก้แล้วได้ผล" }, audience: { en: "engineers · QC", th: "วิศวกร · QC" }, schedule: "off" },
   { id: "supplier-quality", group: { en: "Engineering", th: "วิศวกรรม" }, name: { en: "Supplier quality report", th: "รายงานคุณภาพซัพพลายเออร์" }, desc: { en: "incoming-material defect linkage", th: "ความเชื่อมโยงดีเฟกต์กับวัตถุดิบ" }, audience: { en: "purchasing · QC", th: "จัดซื้อ · QC" }, schedule: "monthly" },
   { id: "traceability", group: { en: "Engineering", th: "วิศวกรรม" }, name: { en: "Traceability report", th: "รายงานสอบกลับ" }, desc: { en: "defect → lot → machine → customer", th: "ดีเฟกต์ → ล็อต → เครื่อง → ลูกค้า" }, audience: { en: "QC", th: "QC" }, schedule: "off" },
@@ -445,7 +445,7 @@ export const reportTemplates: ReportTemplate[] = [
 /* ── AI briefing · the 5-part executive voice (summary → findings → why → impact → next) ── */
 export const aiBrief = {
   confidence: 82,
-  summary: { en: "Quality is under control today, but money is leaking from one clear spot: size defects from the worn die on Stamping Press 03.", th: "คุณภาพวันนี้ยังคุมได้ แต่เงินรั่วชัดๆ อยู่จุดเดียว: ดีเฟกต์เรื่องขนาดจากดา·ี่สึกของ Stamping Press 03" },
+  summary: { en: "Quality is under control today, but money is leaking from one clear spot: size defects from the worn die on Stamping Press 03.", th: "คุณภาพวันนี้ยังคุมได้ แต่เงินรั่วชัดๆ อยู่จุดเดียว: ดีเฟกต์เรื่องขนาดจากดายที่สึกของ Stamping Press 03" },
   findings: [
     { en: "Size defects alone cost ฿12K/day — the most expensive defect on the floor", th: "ดีเฟกต์เรื่องขนาดตัวเดียวกินเงิน ฿12K/วัน — แพงสุดในบรรดาดีเฟกต์ทั้งหมด" },
     { en: "They spike while Press 03 runs, on Night B (2.1×) and right after model changes", th: "เกิดหนักช่วงเดิน Press 03 · กะดึก B (2.1 เท่า) · หลังเปลี่ยนรุ่น" },

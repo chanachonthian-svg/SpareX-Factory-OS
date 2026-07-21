@@ -65,6 +65,11 @@ export const monthlyBills: { label: string; onPeak: number; offPeak: number; dem
   { label: "MTD", onPeak: 614817, offPeak: 226773, demand: 398790, penalty: 29909, mtd: true },
 ];
 
+/** Units produced per month (MES output), aligned index-for-index to monthlyBills.
+ *  Lets Energy Intensity derive kWh/unit and ฿/unit straight from the metered bill —
+ *  the core efficiency question: are we spending more energy per thing we make? */
+export const monthlyUnits = [199_000, 192_000, 190_000, 196_000, 191_000, 187_000];
+
 /** Loads that can be time-shifted into the cheap off-peak window. Sourced from the same asset
  *  registry the Settings screen manages (single source of truth) — only genuinely deferrable
  *  machines (buffered by air receivers, thermal storage or batteries) qualify. `save` = kw ×
@@ -94,7 +99,7 @@ export const savingMeasures: { name: string; detail: string; saving: number; cap
   { name: "Peak Optimization", detail: "Automated load-shed + pre-cooling off-peak.", saving: 1_200_000, capex: 0, paybackMo: 0, confidence: 92, status: "active", source: "Demand charge 34% of bill · monthly peak 3,150 kW over contract" },
   { name: "Idle Machine Shutdown", detail: "Auto-standby for machines idling >15 min.", saving: 340_000, capex: 0, paybackMo: 0, confidence: 95, status: "active", source: "Metered idle draw 128 kWh/day across 6 machines" },
   { name: "Compressor Sequencing", detail: "Lead/lag staging to match air demand.", saving: 850_000, capex: 120_000, paybackMo: 2, confidence: 88, status: "ready", source: "Air demand vs supply mismatch · 2 compressors poorly staged" },
-  { name: "Chiller Optimization", detail: "Setpoint + staging tuning across the plant.", saving: 620_000, capex: 260_000, paybackMo: 5, confidence: 84, status: "ready", source: "Chiller kW/ton 12% over design · setpoint drift" },
+  { name: "Chiller Optimization", detail: "Setpoint + staging tuning across the plant.", saving: 620_000, capex: 260_000, paybackMo: 5, confidence: 84, status: "ready", source: "Chiller draws 12% over design for the same PLC load · setpoint drift" },
   { name: "LED + HVAC Retrofit", detail: "Facility lighting + AHU VSD upgrade.", saving: 480_000, capex: 1_400_000, paybackMo: 35, confidence: 76, status: "planned", source: "Equipment audit · 4,200 legacy fixtures · AHU without VSD" },
   { name: "Solar Rooftop 500 kWp", detail: "Offset daytime on-peak with PV.", saving: 1_950_000, capex: 9_500_000, paybackMo: 58, confidence: 80, status: "planned", source: "2,400 m² usable roof · 68% of load is daytime on-peak" },
 ];
@@ -282,9 +287,19 @@ export const PQ_EVENT_META: { type: PqEventType; label: LZ; color: string }[] = 
 ];
 /** headline tallies — how many of each disturbance so far today / this month */
 export const pqTally: Record<"today" | "month", Record<PqEventType, number>> = {
-  today: { sag: 7, overvoltage: 3, flicker: 12, transient: 4 },
-  month: { sag: 143, overvoltage: 58, flicker: 261, transient: 71 },
+  today: { sag: 7, overvoltage: 6, flicker: 12, transient: 4 },
+  month: { sag: 143, overvoltage: 121, flicker: 261, transient: 71 },
 };
+/** per-source tallies — which equipment causes the disturbances, for the "most frequent
+ *  source" ranking. Totals reconcile with pqTally above (today / this month). */
+export const pqSources: { name: string; feeder: string; type: PqEventType; today: number; month: number }[] = [
+  { name: "Weld Robot 04", feeder: "DB-B · Line B", type: "flicker", today: 12, month: 261 },
+  { name: "Chiller B", feeder: "DB-COOL · Cooling", type: "sag", today: 5, month: 100 },
+  { name: "Capacitor Bank", feeder: "MDB", type: "overvoltage", today: 4, month: 82 },
+  { name: "Capacitor Bank", feeder: "MDB", type: "transient", today: 4, month: 71 },
+  { name: "Utility side", feeder: "PCC incomer", type: "sag", today: 2, month: 43 },
+  { name: "Stamping Press 03", feeder: "DB-B · Line B", type: "overvoltage", today: 2, month: 39 },
+];
 const pqDailyRate: Record<PqEventType, number> = {
   sag: pqTally.month.sag / 30, overvoltage: pqTally.month.overvoltage / 30,
   flicker: pqTally.month.flicker / 30, transient: pqTally.month.transient / 30,
@@ -307,10 +322,12 @@ export const pqEventProfile: Record<PqEventType, { worst: LZ; source: string; st
 export const pqNotableEvents: { at: string; type: PqEventType; detail: LZ; phase: string; source: string; itic: "within" | "violation" }[] = [
   { at: "15:45:51", type: "transient", detail: { en: "impulse 2.00 pu", th: "อิมพัลส์ 2.00 pu" }, phase: "L1", source: "Main Distribution", itic: "violation" },
   { at: "15:45:39", type: "overvoltage", detail: { en: "RMS 111% overvoltage", th: "RMS 111% แรงดันเกิน" }, phase: "L2", source: "Main Distribution", itic: "within" },
+  { at: "14:22:10", type: "overvoltage", detail: { en: "swell 109% — cap-bank step in", th: "แรงดันพุ่ง 109% — คาปาซิเตอร์สลับสเต็ป" }, phase: "3φ", source: "Main Distribution", itic: "within" },
   { at: "13:41:07", type: "transient", detail: { en: "1.9 kV impulse — capacitor switching", th: "อิมพัลส์ 1.9 kV — สวิตช์คาปาซิเตอร์" }, phase: "L1", source: "Main Distribution", itic: "violation" },
   { at: "11:26:33", type: "sag", detail: { en: "dipped to 76% for 120 ms", th: "ตกเหลือ 76% นาน 120 ms" }, phase: "L2", source: "Chiller B", itic: "violation" },
   { at: "10:12:44", type: "flicker", detail: { en: "Pst 0.58 — arc welding", th: "Pst 0.58 — งานเชื่อมอาร์ก" }, phase: "3φ", source: "Weld Robot 04", itic: "within" },
   { at: "09:02:18", type: "overvoltage", detail: { en: "rose to 104% for 60 ms", th: "ขึ้นถึง 104% นาน 60 ms" }, phase: "L1", source: "Main Distribution", itic: "within" },
+  { at: "08:15:22", type: "overvoltage", detail: { en: "swell to 112% — press-line load rejection", th: "แรงดันพุ่ง 112% — โหลด press หลุด" }, phase: "L3", source: "Press Line 02", itic: "within" },
   { at: "07:41:05", type: "sag", detail: { en: "3φ dip to 88% for 200 ms", th: "3φ ตกเหลือ 88% นาน 200 ms" }, phase: "3φ", source: "Utility side", itic: "within" },
   { at: "06:18:20", type: "flicker", detail: { en: "Pst 0.61 — arc welding", th: "Pst 0.61 — งานเชื่อมอาร์ก" }, phase: "3φ", source: "Weld Robot 04", itic: "within" },
 ];
@@ -513,11 +530,11 @@ export const pmFindings: PMFinding[] = [
     ],
     rootCause: [
       { en: "≈1,180 kVAR of uncompensated inductive load.", th: "มีโหลดเหนี่ยวนำที่ไม่ได้ชดเชยราว 1,180 kVAR" },
-      { en: "Induction motors, transformers and welders draw magnetising current with no local compensation.", th: "Motor เหนี่ยวนำ หม้อแปลง และตู้เชื่อม กินกำลังรีแอกทีฟ (magnetising) โดยไม่มีตัวชดเช·ี่หน้างาน" },
+      { en: "Induction motors, transformers and welders draw magnetising current with no local compensation.", th: "Motor เหนี่ยวนำ หม้อแปลง และตู้เชื่อม กินกำลังรีแอกทีฟ (magnetising) โดยไม่มีตัวชดเชยที่หน้างาน" },
     ],
-    impact: { en: "≈฿28,400/month in PF penalties, plus 6% of cable and transformer capacity wasted carrying reactive current — which blocks future expansion.", th: "เสียค่าปรับ PF ราว ฿28,400/เดือน และเปลืองพิกัดสาย/หม้อแปลงไป 6% ไปกับการส่งกระแสรีแอกทีฟ ทำให้ขยา·ำลังผลิตในอนาคตติดขัด" },
+    impact: { en: "≈฿28,400/month in PF penalties, plus 6% of cable and transformer capacity wasted carrying reactive current — which blocks future expansion.", th: "เสียค่าปรับ PF ราว ฿28,400/เดือน และเปลืองพิกัดสาย/หม้อแปลงไป 6% ไปกับการส่งกระแสรีแอกทีฟ ทำให้ขยายกำลังผลิตในอนาคตติดขัด" },
     recommendation: [
-      { en: "Install an automatic PF-correction bank sized to lift PF to 0.98.", th: "ติดตั้งชุดคาปาซิเตอร์แก้ PF อัตโนมัติ ให้· PF ขึ้นเป็น 0.98" },
+      { en: "Install an automatic PF-correction bank sized to lift PF to 0.98.", th: "ติดตั้งชุดคาปาซิเตอร์แก้ PF อัตโนมัติ ให้ค่า PF ขึ้นเป็น 0.98" },
       { en: "Use detuned reactors — on-site VFD harmonics would otherwise resonate with the capacitors.", th: "ต้องใส่รีแอกเตอร์ดีจูน เพราะฮาร์มอนิกจาก VFD จะเรโซแนนซ์กับคาปาซิเตอร์ได้" },
     ],
     parts: [
@@ -542,7 +559,7 @@ export const pmFindings: PMFinding[] = [
     ],
     rootCause: [
       { en: "Six 45 kW extruder VFDs are 6-pulse drives with no input reactors.", th: "VFD เอ็กซ์ทรูเดอร์ 45 kW จำนวน 6 ตัว เป็นไดรฟ์ 6 พัลส์ ไม่มีรีแอกเตอร์ด้านเข้า" },
-      { en: "They inject 5th/7th harmonic currents that distort the bus voltage.", th: "จึงปล่อ·ระแสฮาร์มอนิกลำดับ 5/7 ทำให้แรงดันบัสเพี้ยน" },
+      { en: "They inject 5th/7th harmonic currents that distort the bus voltage.", th: "จึงปล่อยกระแสฮาร์มอนิกลำดับ 5/7 ทำให้แรงดันบัสเพี้ยน" },
     ],
     impact: { en: "Extra transformer and cable heating (~9 tCO₂/yr of loss), nuisance breaker trips, and risk of failing the utility's IEEE-519 audit at the point of common coupling.", th: "หม้อแปลงและสายร้อนเกิน (สูญเสียราว 9 tCO₂/ปี) เบรกเกอร์ทริปโดยไม่จำเป็น และเสี่ยงไม่ผ่านการตรวจ IEEE-519 ของการไฟฟ้าที่จุดต่อร่วม" },
     recommendation: [
@@ -562,12 +579,12 @@ export const pmFindings: PMFinding[] = [
     asset: { en: "Office & QC panel · DB-3", th: "ตู้สำนักงาน & QC · DB-3" }, meter: "PM-07 · DB-3", detected: "Jun 30 · 11:10",
     symptom: [
       { en: "Neutral current measures 118% of the average phase current.", th: "กระแสนิวทรัลวัดได้ 118% ของกระแสเฉลี่ยต่อเฟส" },
-      { en: "The neutral runs hotter than the phases even though the load looks balanced.", th: "สายนิวทรัลร้อนกว่าสายเฟส ทั้งที่โหลดดูสมดุล" },
+      { en: "The neutral carries more current than any single phase even though the load looks balanced.", th: "สายนิวทรัลรับกระแสมากกว่าสายเฟสใด ๆ ทั้งที่โหลดดูสมดุล" },
     ],
     metrics: [
       { label: { en: "Neutral current", th: "กระแสนิวทรัล" }, value: "118%", limit: "≤ 60% of phase", status: "bad", pct: 88 },
       { label: { en: "3rd harmonic (I)", th: "ฮาร์มอนิกที่ 3 (กระแส)" }, value: "14%", limit: "≤ 5%", status: "bad", pct: 82 },
-      { label: { en: "Neutral temp rise", th: "อุณหภูมินิวทรัลเพิ่ม" }, value: "+34°C", limit: "≤ 20°C", status: "warn", pct: 70 },
+      { label: { en: "Est. neutral heating", th: "ความร้อนนิวทรัล (ประมาณ)" }, value: "~2×", limit: "1×", status: "warn", pct: 70 },
     ],
     rootCause: [
       { en: "Hundreds of single-phase electronic loads — PCs, LED drivers, chargers.", th: "โหลดเฟสเดียวชนิดอิเล็กทรอนิกส์นับร้อย — พีซี ไดรเวอร์ LED ที่ชาร์จ" },
@@ -591,12 +608,12 @@ export const pmFindings: PMFinding[] = [
     asset: { en: "Motor control centre · MCC-2", th: "ตู้ควบคุม Motor · MCC-2" }, meter: "PM-05 · MCC-2", detected: "Jun 27 · 16:45",
     symptom: [
       { en: "Voltage unbalance 2.8% — above the 2% NEMA limit.", th: "ความไม่สมดุลแรงดัน 2.8% เกินเกณฑ์ NEMA ที่ 2%" },
-      { en: "Affected motors run 8–12°C hotter and lose efficiency.", th: "Motor ที่กระทบร้อนขึ้น 8–12°C และประสิทธิภาพลดลง" },
+      { en: "The affected motors are derated ~18% and lose efficiency.", th: "Motor ที่กระทบต้องลดพิกัดราว 18% และประสิทธิภาพลดลง" },
     ],
     metrics: [
       { label: { en: "Voltage unbalance", th: "ความไม่สมดุลแรงดัน" }, value: "2.8%", limit: "≤ 2.0%", status: "bad", pct: 82 },
       { label: { en: "Motor derating", th: "Motor ต้อง derate" }, value: "18%", limit: "0%", status: "warn", pct: 60 },
-      { label: { en: "Winding temp", th: "อุณหภูมิขดลวด" }, value: "+11°C", limit: "0", status: "warn", pct: 55 },
+      { label: { en: "Est. winding loss", th: "การสูญเสียขดลวด (ประมาณ)" }, value: "~2×", limit: "1×", status: "warn", pct: 55 },
     ],
     rootCause: [
       { en: "Single-phase loads (lighting, welders, chargers) are split unevenly across L1/L2/L3.", th: "โหลดเฟสเดียว (แสงสว่าง ตู้เชื่อม ที่ชาร์จ) กระจายไม่เท่ากันระหว่าง L1/L2/L3" },
@@ -604,7 +621,7 @@ export const pmFindings: PMFinding[] = [
     ],
     impact: { en: "A 2.8% unbalance derates motors ~18% and roughly doubles winding losses — leading to early insulation failure and higher energy use.", th: "ความไม่สมดุล 2.8% ทำให้ Motor ลดพิกัดราว 18% และการสูญเสียในขดลวดเพิ่มเกือบเท่าตัว — ฉนวนเสื่อมเร็วและใช้พลังงานมากขึ้น" },
     recommendation: [
-      { en: "Re-balance the single-phase circuits across the three phases (mostly wiring).", th: "จัดสมดุลวงจรเฟสเดียวใหม่ให้กระจา·ั้งสามเฟส (ส่วนใหญ่เป็นงานเดินสาย)" },
+      { en: "Re-balance the single-phase circuits across the three phases (mostly wiring).", th: "จัดสมดุลวงจรเฟสเดียวใหม่ให้กระจายทั้งสามเฟส (ส่วนใหญ่เป็นงานเดินสาย)" },
       { en: "Add per-phase monitoring to hold unbalance under 1%.", th: "เพิ่มการวัดรายเฟส เพื่อคุมความไม่สมดุลให้ต่ำกว่า 1%" },
     ],
     parts: [
@@ -632,7 +649,7 @@ export const pmFindings: PMFinding[] = [
       { en: "Upstream utility faults with auto-reclose add more sags.", th: "ฟอลต์ฝั่งการไฟฟ้าที่มี auto-reclose ยิ่งเพิ่มไฟตก" },
       { en: "The sensitive PLCs have no ride-through.", th: "PLC ที่ไวไม่มีระบบ ride-through" },
     ],
-    impact: { en: "≈3.2 h/month of unplanned downtime plus scrap at restart — the single biggest loss on this page.", th: "ทำให้เสียเวลาโดยไม่ได้วางแผนราว 3.2 ชม./เดือน บวกของเสียตอนรีสตาร์ท — เป็นการสูญเสี·้อนใหญ่ที่สุดในหน้านี้" },
+    impact: { en: "≈3.2 h/month of unplanned downtime plus scrap at restart — the single biggest loss on this page.", th: "ทำให้เสียเวลาโดยไม่ได้วางแผนราว 3.2 ชม./เดือน บวกของเสียตอนรีสตาร์ท — เป็นการสูญเสียก้อนใหญ่ที่สุดในหน้านี้" },
     recommendation: [
       { en: "Soft-start/VFD Chiller B to kill the local inrush.", th: "ใส่ซอฟต์สตาร์ท/VFD ให้ Chiller B กำจัดกระแสพุ่งเฉพาะจุด" },
       { en: "Install a ride-through device (DVR or online UPS) on the critical PLC panel.", th: "ติดตั้งอุปกรณ์ ride-through (DVR หรือ UPS ออนไลน์) ที่ตู้ PLC สำคัญ" },
@@ -709,21 +726,21 @@ export const pmFindings: PMFinding[] = [
     asset: { en: "Cooling-water pump P-3", th: "Cooling-water pump P-3" }, meter: "PM-09 · MCC-2", detected: "Jun 28 · 10:30",
     symptom: [
       { en: "A 75 kW motor runs at only 38% load.", th: "Motor 75 kW เดินที่โหลดเพียง 38%" },
-      { en: "Flow is trimmed with a throttling valve 40% closed — well below the efficiency sweet spot.", th: "หรี่การไหลด้วยวาล์วที่ปิดอยู่ 40% — ต่ำกว่าจุดประสิทธิภาพสูงสุดมาก" },
+      { en: "It draws steadily at a low load factor around the clock — never near its efficient band.", th: "ดึงไฟคงที่ที่โหลดต่ำตลอดเวลา — ไม่เคยเข้าใกล้ช่วงประสิทธิภาพดี" },
     ],
     metrics: [
       { label: { en: "Motor load", th: "โหลด Motor" }, value: "38%", limit: "70–90%", status: "warn", pct: 55 },
       { label: { en: "Operating efficiency", th: "ประสิทธิภาพขณะใช้งาน" }, value: "88%", limit: "≥ 95%", status: "warn", pct: 60 },
-      { label: { en: "Throttle loss", th: "การสูญเสี·ี่วาล์ว" }, value: "40% closed", limit: "open", status: "bad", pct: 65 },
+      { label: { en: "Est. energy waste", th: "พลังงานที่เสีย (ประมาณ)" }, value: "~22%", limit: "0", status: "bad", pct: 65 },
     ],
     rootCause: [
-      { en: "The pump is oversized for the actual flow.", th: "Pump ถูกเลือกขนาดใหญ่เกินความต้องการจริง" },
-      { en: "Throttling burns energy across the valve instead of matching speed to demand.", th: "การหรี่วาล์วเผาพลังงานทิ้งที่วาล์ว แทนที่จะปรับความเร็วให้ตรงกับความต้องการ" },
+      { en: "The motor is oversized — it never draws near its rated load.", th: "Motor ถูกเลือกขนาดใหญ่เกินไป — ไม่เคยดึงไฟใกล้พิกัด" },
+      { en: "With no speed control, the surplus capacity is wasted instead of dialled back to the real duty.", th: "ไม่มีการควบคุมความเร็ว กำลังส่วนเกินจึงถูกทิ้งแทนที่จะปรับลดให้ตรงกับงานจริง" },
     ],
-    impact: { en: "Throttling wastes ~22% of the pump's energy; right-sizing plus a VFD recovers most of it.", th: "การหรี่วาล์วเปลืองพลังงาน Pump ราว 22% การเลือกขนาดใหม่บวก VFD ช่ว·ู้คืนได้เกือบหมด" },
+    impact: { en: "Running a 75 kW motor at 38% load wastes ~22% of its energy; right-sizing plus a VFD recovers most of it.", th: "เดิน Motor 75 kW ที่โหลด 38% เปลืองพลังงานราว 22% การเลือกขนาดใหม่บวก VFD ช่วยกู้คืนได้เกือบหมด" },
     recommendation: [
       { en: "Replace with a right-sized 37 kW IE4 motor.", th: "เปลี่ยนเป็น Motor IE4 ขนาด 37 kW ที่พอดี" },
-      { en: "Add a VFD so speed follows demand — removing the throttling loss entirely.", th: "เพิ่ม VFD ให้ความเร็วปรับตามความต้องการ — กำจัดการสูญเสียจากวาล์วทั้งหมด" },
+      { en: "Add a VFD so speed follows the real duty — cutting the surplus draw entirely.", th: "เพิ่ม VFD ให้ความเร็วปรับตามงานจริง — ตัดกำลังส่วนเกินทั้งหมด" },
     ],
     parts: [
       { name: { en: "IE4 premium motor", th: "Motor IE4 พรีเมียม" }, spec: "37 kW · 415V · 1,480 rpm", qty: 1, unit: UNIT_EA, unitPrice: 78000 },
@@ -738,12 +755,12 @@ export const pmFindings: PMFinding[] = [
     asset: { en: "Compressor room · C-1/C-2", th: "Compressor room · C-1/C-2" }, meter: "PM-10 · compressor room", detected: "Jun 29 · 15:05",
     symptom: [
       { en: "Load/unload cycling 14×/hour.", th: "เดินโหลด/อันโหลดถี่ 14 ครั้ง/ชม." },
-      { en: "Specific power 0.132 kWh/Nm³ vs a 0.110 target.", th: "กำลังจำเพาะ 0.132 kWh/Nm³ เทียบเป้า 0.110" },
+      { en: "It keeps drawing load-power through no-production hours — a persistent base demand.", th: "ยังดึงไฟแบบโหลดตลอดช่วงไม่ผลิต — เป็นโหลดฐานที่ค้างอยู่" },
       { en: "Two fixed-speed units are poorly staged.", th: "Compressor ความเร็วคงที่สองตัวจัดลำดับไม่ดี" },
     ],
     metrics: [
       { label: { en: "Cycles / hour", th: "รอบ/ชม." }, value: "14", limit: "≤ 6", status: "bad", pct: 78 },
-      { label: { en: "Specific power", th: "กำลังจำเพาะ" }, value: "0.132 kWh/Nm³", limit: "≤ 0.110", status: "warn", pct: 65 },
+      { label: { en: "Idle load draw", th: "โหลดฐานขณะไม่ผลิต" }, value: "18 kW", limit: "≈ 0", status: "warn", pct: 65 },
       { label: { en: "Estimated leaks", th: "ลมรั่ว (ประมาณ)" }, value: "18%", limit: "≤ 10%", status: "warn", pct: 62 },
     ],
     rootCause: [
@@ -770,22 +787,22 @@ export const pmFindings: PMFinding[] = [
     category: { en: "Chiller / HVAC", th: "Chiller / HVAC" },
     asset: { en: "Chiller B · utility yard", th: "Chiller B · ลานยูทิลิตี้" }, meter: "PM-11 · chiller B", detected: "Jun 30 · 13:20",
     symptom: [
-      { en: "0.82 kW/ton measured vs a 0.65 design — 26% worse.", th: "วัดได้ 0.82 kW/ton เทียบค่าออกแบบ 0.65 — แย่ลง 26%" },
-      { en: "Condenser approach temperature is high; the setpoint has drifted up.", th: "อุณหภูมิ approach คอนเดนเซอร์สูง · setpoint น้ำคอนเดนเซอร์เพี้ยนสูงขึ้น" },
+      { en: "It draws 26% more power than design for the same PLC cooling load.", th: "ดึงไฟมากกว่าค่าออกแบบ 26% สำหรับโหลดความเย็นเท่าเดิม (จาก PLC)" },
+      { en: "The condenser-water setpoint (from the PLC) has drifted up, forcing more power per unit of cooling.", th: "setpoint น้ำคอนเดนเซอร์ (จาก PLC) เพี้ยนสูงขึ้น ทำให้ใช้ไฟมากขึ้นต่อความเย็นหนึ่งหน่วย" },
     ],
     metrics: [
-      { label: { en: "Efficiency", th: "ประสิทธิภาพ" }, value: "0.82 kW/ton", limit: "≤ 0.65", status: "bad", pct: 78 },
-      { label: { en: "Condenser approach", th: "approach คอนเดนเซอร์" }, value: "+4.2°C", limit: "≤ 1.5°C", status: "bad", pct: 72 },
-      { label: { en: "CW setpoint", th: "Setpoint คอนเดนเซอร์" }, value: "32°C", limit: "29°C", status: "warn", pct: 55 },
+      { label: { en: "Power vs design", th: "กำลังเทียบค่าออกแบบ" }, value: "+26%", limit: "0%", status: "bad", pct: 78 },
+      { label: { en: "Excess power", th: "กำลังส่วนเกิน" }, value: "+23 kW", limit: "0", status: "bad", pct: 72 },
+      { label: { en: "CW setpoint (PLC)", th: "Setpoint คอนเดนเซอร์ (PLC)" }, value: "32°C", limit: "29°C", status: "warn", pct: 55 },
     ],
     rootCause: [
-      { en: "Fouled condenser tubes.", th: "ท่อคอนเดนเซอร์อุดตัน" },
-      { en: "A high condenser-water setpoint forces the compressor to work harder per ton.", th: "setpoint น้ำคอนเดนเซอร์สูง ทำให้ Compressor ต้องทำงานหนักขึ้นต่อตันความเย็น" },
+      { en: "Likely fouled condenser tubes.", th: "น่าจะท่อคอนเดนเซอร์อุดตัน" },
+      { en: "The high condenser-water setpoint makes the compressor work harder for the same cooling.", th: "setpoint น้ำคอนเดนเซอร์สูง ทำให้ Compressor ทำงานหนักขึ้นเพื่อความเย็นเท่าเดิม" },
     ],
     impact: { en: "The 26% drift costs ≈฿288,000/yr for the same cooling output.", th: "การเพี้ยน 26% ทำให้เสียค่าพลังงานราว ฿288,000/ปี สำหรับความเย็นเท่าเดิม" },
     recommendation: [
       { en: "Clean the condenser tubes and reset the setpoint to design.", th: "ล้างท่อคอนเดนเซอร์ และตั้งค่ากลับสู่ค่าออกแบบ" },
-      { en: "Add a VFD on the condenser-water pump for wet-bulb reset.", th: "เพิ่ม VFD ที่ Condenser-water pump เพื่อรีเซ็ตตามอุณหภูมิกระเปาะเปี·" },
+      { en: "Add a VFD on the condenser-water pump for wet-bulb reset.", th: "เพิ่ม VFD ที่ Condenser-water pump เพื่อรีเซ็ตตามอุณหภูมิกระเปาะเปียก" },
       { en: "Mostly service — very fast payback.", th: "ส่วนใหญ่เป็นงานบริการ — คืนทุนเร็วมาก" },
     ],
     parts: [
@@ -801,20 +818,20 @@ export const pmFindings: PMFinding[] = [
     asset: { en: "TX-1 · 2,000 kVA", th: "TX-1 · 2,000 kVA" }, meter: "PM-02 · TX-1", detected: "Jun 22 · 14:00",
     symptom: [
       { en: "TX-1 loads to 92%.", th: "TX-1 โหลดสูงถึง 92%" },
-      { en: "Harmonics derate its usable capacity further; top-oil temperature is trending up in summer.", th: "ฮาร์มอนิกยังลดพิกัดที่ใช้งานได้ลงอีก · อุณหภูมิน้ำมันด้านบนสูงขึ้นในหน้าร้อน" },
+      { en: "Harmonics derate its usable capacity further, so real headroom is thinner than the nameplate — summer load pushes it hardest.", th: "ฮาร์มอนิกยังลดพิกัดที่ใช้งานได้ลงอีก พิกัดสำรองจริงจึงน้อยกว่าที่ป้ายระบุ — โหลดหน้าร้อนกดดันหนักสุด" },
     ],
     metrics: [
       { label: { en: "Transformer loading", th: "โหลดหม้อแปลง" }, value: "92%", limit: "≤ 80%", status: "bad", pct: 90 },
       { label: { en: "Harmonic derating", th: "Derate จากฮาร์มอนิก" }, value: "-7%", limit: "0%", status: "warn", pct: 60 },
-      { label: { en: "Top-oil temp", th: "อุณหภูมิน้ำมันด้านบน" }, value: "78°C", limit: "≤ 65°C", status: "warn", pct: 68 },
+      { label: { en: "Usable headroom", th: "พิกัดสำรองที่ใช้ได้" }, value: "1%", limit: "≥ 20%", status: "warn", pct: 68 },
     ],
     rootCause: [
-      { en: "Load growth plus harmonic heating.", th: "โหลดเติบโตขึ้นบวกความร้อนจากฮาร์มอนิก" },
+      { en: "Load growth plus harmonic derating.", th: "โหลดเติบโตขึ้นบวกการลดพิกัดจากฮาร์มอนิก" },
       { en: "The transformer must be derated for the harmonic-rich load, so headroom is nearly gone.", th: "หม้อแปลงต้องลดพิกัดสำหรับโหลดที่มีฮาร์มอนิกสูง จึงแทบไม่มีพิกัดสำรอง" },
     ],
     impact: { en: "No headroom for expansion, accelerated insulation ageing, and risk of a forced outage on the hottest days.", th: "ไม่มีพิกัดสำรองสำหรับขยาย ฉนวนเสื่อมเร็วขึ้น และเสี่ยงไฟดับฉุกเฉินในวันที่ร้อนที่สุด" },
     recommendation: [
-      { en: "First recover ~7% capacity by fixing harmonics (see PQ-02).", th: "เริ่มด้ว·ารกู้พิกัดคืนราว 7% ด้ว·ารแก้ฮาร์มอนิก (ดู PQ-02)" },
+      { en: "First recover ~7% capacity by fixing harmonics (see PQ-02).", th: "เริ่มด้วยการกู้พิกัดคืนราว 7% ด้วยการแก้ฮาร์มอนิก (ดู PQ-02)" },
       { en: "If growth continues, add a second 1,000 kVA transformer with a tie breaker.", th: "หากยังเติบโตต่อ ให้เพิ่มหม้อแปลงตัวที่สอง 1,000 kVA พร้อม tie breaker" },
     ],
     parts: [
@@ -830,7 +847,7 @@ export const pmFindings: PMFinding[] = [
     asset: { en: "Existing PF bank · MDB-A", th: "ชุดคาปาซิเตอร์เดิม · MDB-A" }, meter: "PM-03 · PF bank", detected: "Jun 23 · 10:40",
     symptom: [
       { en: "The existing un-detuned capacitor bank sits near the 5th-harmonic resonance point.", th: "ชุดคาปาซิเตอร์เดิมที่ไม่มีรีแอกเตอร์ดีจูน อยู่ใกล้จุดเรโซแนนซ์ฮาร์มอนิกลำดับ 5" },
-      { en: "Two capacitor steps have already failed early.", th: "มีคาปาซิเตอร์เสี·่อนกำหนดแล้ว 2 สเต็ป" },
+      { en: "Two capacitor steps have already failed early.", th: "มีคาปาซิเตอร์เสียก่อนกำหนดแล้ว 2 สเต็ป" },
     ],
     metrics: [
       { label: { en: "Resonance point", th: "จุดเรโซแนนซ์" }, value: "~4.8th", limit: "away from 5th", status: "bad", pct: 75 },
@@ -952,6 +969,227 @@ export const pmSummary = {
   },
 };
 
+/* ------------------------------------ 05 report · M&V before/after baselines
+ * Keyed by the finding/WO id (WorkOrder.findingId). When a WO is verified, the Report
+ * step pulls the machine's pre-fix baseline and compares it to the post-fix reading —
+ * proving (from power-meter + PLC only) that energy/efficiency actually improved. */
+export type MVBaseline = { id: string; machine: LZ; metric: LZ; before: number; after: number; target: number; unit: string; betterLower: boolean; monitorDays: number };
+export const mvBaselines: MVBaseline[] = [
+  { id: "cp-chiller", machine: { en: "Chiller B · utility yard", th: "Chiller B · ลานยูทิลิตี้" }, metric: { en: "Specific power (kW per %PLC-load)", th: "กำลังจำเพาะ (kW ต่อ %โหลด PLC)" }, before: 1.26, after: 1.03, target: 1.05, unit: "", betterLower: true, monitorDays: 21 },
+  { id: "cp-air", machine: { en: "Compressors · C-1/C-2", th: "คอมเพรสเซอร์ · C-1/C-2" }, metric: { en: "Night base-load draw", th: "โหลดฐานกลางคืน" }, before: 18, after: 5, target: 2, unit: " kW", betterLower: true, monitorDays: 14 },
+  { id: "cp-pf", machine: { en: "PF bank · MDB-A", th: "ชุดคาปาซิเตอร์ · MDB-A" }, metric: { en: "Power factor", th: "เพาเวอร์แฟกเตอร์" }, before: 0.88, after: 0.98, target: 0.95, unit: "", betterLower: false, monitorDays: 20 },
+  { id: "cp-sag", machine: { en: "Packing line · DB-5", th: "ไลน์แพ็ก · DB-5" }, metric: { en: "Line downtime", th: "เวลาไลน์หยุด" }, before: 3.2, after: 0.2, target: 0.5, unit: " h/mo", betterLower: true, monitorDays: 30 },
+  { id: "cp-pump", machine: { en: "Cooling-water pump P-3", th: "ปั๊มน้ำเย็น P-3" }, metric: { en: "Motor load factor", th: "ตัวประกอบโหลดมอเตอร์" }, before: 38, after: 82, target: 75, unit: "%", betterLower: false, monitorDays: 14 },
+  { id: "qw-peak", machine: { en: "Plant-wide · main meter", th: "ทั้งโรงงาน · มิเตอร์หลัก" }, metric: { en: "Monthly peak demand", th: "พีคดีมานด์รายเดือน" }, before: 1560, after: 1410, target: 1450, unit: " kW", betterLower: true, monitorDays: 30 },
+  { id: "qw-idle", machine: { en: "6 CNC machines", th: "เครื่อง CNC 6 เครื่อง" }, metric: { en: "Idle base-load", th: "โหลดฐานเดินตัวเปล่า" }, before: 24, after: 4, target: 6, unit: " kW", betterLower: true, monitorDays: 14 },
+  { id: "pq-01", machine: { en: "MDB · incomer", th: "ตู้เมน MDB · จุดรับไฟ" }, metric: { en: "Power factor", th: "เพาเวอร์แฟกเตอร์" }, before: 0.82, after: 0.99, target: 0.95, unit: "", betterLower: false, monitorDays: 30 },
+  { id: "pq-06", machine: { en: "Plant-wide · main meter", th: "ทั้งโรงงาน · มิเตอร์หลัก" }, metric: { en: "Monthly peak demand", th: "พีคดีมานด์รายเดือน" }, before: 1560, after: 1420, target: 1450, unit: " kW", betterLower: true, monitorDays: 30 },
+  { id: "pq-10", machine: { en: "Chiller · CH-2", th: "Chiller · CH-2" }, metric: { en: "Specific power (kW per %PLC-load)", th: "กำลังจำเพาะ (kW ต่อ %โหลด PLC)" }, before: 1.26, after: 1.05, target: 1.05, unit: "", betterLower: true, monitorDays: 21 },
+];
+
+/** did the post-fix reading actually reach the promised target? */
+export const mvMetTarget = (b: MVBaseline) => (b.betterLower ? b.after <= b.target : b.after >= b.target);
+
+/* --------------------------------------------- 04 recommend & act · action plan
+ * Split by capital: quickWins need ฿0 (software/schedule/config — an executive can
+ * approve on the spot, the AI can run many automatically), capitalProjects need budget
+ * and carry a full BOM with brand + part number so an engineer can order directly. */
+export type ActionPart = { name: LZ; brand: string; partNo: string; spec: string; qty: number; unit: LZ; unitPrice: number };
+
+export const quickWins: { id: string; title: LZ; asset: LZ; savingYr: number; effort: LZ; how: LZ; auto: boolean }[] = [
+  { id: "qw-peak", title: { en: "Peak-demand management", th: "จัดการพีคดีมานด์" }, asset: { en: "Plant-wide · main meter", th: "ทั้งโรงงาน · มิเตอร์หลัก" }, savingYr: 240000, effort: { en: "PLC rules · 2 days", th: "ตั้งกฎ PLC · 2 วัน" }, how: { en: "Shed / stage non-critical loads before demand hits the 1,500 kW cap", th: "ปลด / สลับโหลดไม่วิกฤตก่อนดีมานด์แตะเพดาน 1,500 kW" }, auto: true },
+  { id: "qw-idle", title: { en: "Idle-waste management", th: "จัดการไฟเดินตัวเปล่า" }, asset: { en: "6 CNC machines · shop floor", th: "เครื่อง CNC 6 เครื่อง · พื้นที่ผลิต" }, savingYr: 168000, effort: { en: "PLC logic · 2 days", th: "ตั้งลอจิก PLC · 2 วัน" }, how: { en: "Auto-standby: drop hydraulics & controls after 15 min idle", th: "auto-standby: ตัดไฮดรอลิก & คอนโทรลหลังเดินเบา 15 นาที" }, auto: true },
+  { id: "qw-stagger", title: { en: "Scheduled load — staggered start-up", th: "จัดตารางโหลด — ไล่เปิดเครื่อง" }, asset: { en: "Production lines · shift start", th: "สายการผลิต · เริ่มกะ" }, savingYr: 120000, effort: { en: "PLC schedule · 1 day", th: "ตั้งตาราง PLC · 1 วัน" }, how: { en: "Spread machine start-ups so they don't all inrush together and spike the peak", th: "กระจายเวลาเปิดเครื่อง ไม่ให้กระชากพร้อมกันจนดันพีค" }, auto: true },
+  { id: "qw-shift", title: { en: "Off-peak load shifting", th: "เลื่อนโหลดไปช่วง off-peak" }, asset: { en: "Compressors · chillers", th: "คอมเพรสเซอร์ · ชิลเลอร์" }, savingYr: 300000, effort: { en: "BMS / PLC schedule · 1 day", th: "ตั้งตาราง BMS / PLC · 1 วัน" }, how: { en: "Move deferrable loads (air, pre-cooling) into the cheap off-peak window", th: "ย้ายโหลดที่เลื่อนได้ (ลม, พรีคูล) ไปช่วง off-peak ค่าไฟถูก" }, auto: true },
+];
+
+export const capitalProjects: { id: string; severity: "critical" | "warning" | "recommend"; title: LZ; asset: LZ; savingYr: number; capex: number; paybackMo: number; roi: number; downtime: LZ; why: LZ; evidence: LZ[]; outcome: LZ[]; parts: ActionPart[] }[] = [
+  {
+    id: "cp-chiller", severity: "warning", title: { en: "Restore Chiller B efficiency", th: "กู้ประสิทธิภาพ Chiller B" }, asset: { en: "Chiller B · utility yard", th: "Chiller B · ลานยูทิลิตี้" },
+    savingYr: 288000, capex: 70000, paybackMo: 3, roi: 411, downtime: { en: "4 h · off-shift", th: "4 ชม. · นอกกะ" },
+    why: { en: "Chiller B has drifted 26% off its design efficiency — it now draws far more power for the same cooling and is the plant's single most expensive drift.", th: "Chiller B ประสิทธิภาพเพี้ยนจากค่าออกแบบ 26% — ใช้ไฟมากขึ้นมากเพื่อความเย็นเท่าเดิม และเป็นจุดที่แพงที่สุดในโรงงาน" },
+    evidence: [
+      { en: "+23 kW vs same-load baseline", th: "+23 kW เทียบค่าฐานที่โหลดเท่ากัน" },
+      { en: "specific power (kW per PLC load%) up 26%", th: "กำลังจำเพาะ (kW ต่อ %โหลด PLC) เพิ่ม 26%" },
+      { en: "runs longer to hold the setpoint", th: "เดินนานขึ้นเพื่อรักษา setpoint" },
+    ],
+    outcome: [
+      { en: "Back to design efficiency — the +23 kW excess draw is gone", th: "กลับสู่ประสิทธิภาพออกแบบ — กำลังส่วนเกิน +23 kW หายไป" },
+      { en: "Same cooling for ~26% less power", th: "ความเย็นเท่าเดิมด้วยไฟน้อยลง ~26%" },
+      { en: "≈฿288,000/yr recovered · pays back in 3 months", th: "กู้คืน ≈฿288,000/ปี · คืนทุนใน 3 เดือน" },
+    ],
+    parts: [
+      { name: { en: "Condenser tube cleaning", th: "ล้างท่อคอนเดนเซอร์" }, brand: "Service", partNo: "—", spec: "chemical + mechanical", qty: 1, unit: UNIT_LOT, unitPrice: 28000 },
+      { name: { en: "Condenser-pump VFD 22 kW", th: "VFD ปั๊มคอนเดนเซอร์ 22 kW" }, brand: "ABB", partNo: "ACS580-01-045A-4", spec: "22 kW · 415V · IP21 · built-in choke", qty: 1, unit: UNIT_EA, unitPrice: 42000 },
+    ],
+  },
+  {
+    id: "cp-air", severity: "warning", title: { en: "Compressed-air VSD + sequencing", th: "ระบบลม VSD + จัดลำดับ" }, asset: { en: "Compressor room · C-1/C-2", th: "ห้องคอมเพรสเซอร์ · C-1/C-2" },
+    savingYr: 312000, capex: 540000, paybackMo: 21, roi: 58, downtime: { en: "1 day · weekend", th: "1 วัน · เสาร์-อาทิตย์" },
+    why: { en: "Two fixed-speed compressors short-cycle and hunt against each other, and a persistent night draw points to leaks — wasting ~15–20% of compressed-air energy.", th: "คอมเพรสเซอร์ความเร็วคงที่ 2 ตัวสับเปิด-ปิดถี่และแย่งกันทำงาน บวกโหลดกลางคืนที่ค้างชี้ว่ามีลมรั่ว — เปลืองพลังงานลมราว 15–20%" },
+    evidence: [
+      { en: "load/unload cycling 14×/hour", th: "โหลด/อันโหลด 14 ครั้ง/ชม." },
+      { en: "still draws load-power at 02:00 with all lines idle (PLC)", th: "ยังดึงไฟแบบโหลดตอน 02:00 ทั้งที่ไลน์หยุด (PLC)" },
+      { en: "two fixed-speed units poorly staged", th: "สองตัวความเร็วคงที่จัดลำดับไม่ดี" },
+    ],
+    outcome: [
+      { en: "Short-cycling stops — one VSD unit trims smoothly to demand", th: "หยุดสับเปิด-ปิดถี่ — VSD ปรับตามความต้องการนุ่มนวล" },
+      { en: "Night base-load & leak losses cut", th: "ตัดโหลดฐานกลางคืน & การรั่วทิ้ง" },
+      { en: "≈฿312,000/yr saved · longer valve & motor life", th: "ประหยัด ≈฿312,000/ปี · วาล์ว & มอเตอร์อายุยืนขึ้น" },
+    ],
+    parts: [
+      { name: { en: "VSD retrofit kit 55 kW", th: "ชุด VSD 55 kW" }, brand: "Danfoss", partNo: "VLT FC-102 P55K", spec: "55 kW · 415V · with controller", qty: 1, unit: UNIT_SET, unitPrice: 320000 },
+      { name: { en: "Air receiver 3,000 L", th: "ถังพักลม 3,000 ลิตร" }, brand: "Kaeser", partNo: "3000L-11bar-ASME", spec: "3,000 L · 11 bar · ASME", qty: 1, unit: UNIT_EA, unitPrice: 95000 },
+      { name: { en: "Master sequencer", th: "Master sequencer" }, brand: "Atlas Copco", partNo: "ES 4000", spec: "up to 4 compressors · pressure-band", qty: 1, unit: UNIT_EA, unitPrice: 68000 },
+    ],
+  },
+  {
+    id: "cp-pf", severity: "warning", title: { en: "Detuned power-factor correction", th: "แก้ Power Factor แบบดีจูน" }, asset: { en: "PF bank · MDB-A", th: "ชุดคาปาซิเตอร์ · MDB-A" },
+    savingYr: 60000, capex: 180000, paybackMo: 36, roi: 33, downtime: { en: "3 h · off-shift", th: "3 ชม. · นอกกะ" },
+    why: { en: "The un-detuned capacitor bank sits near the 5th-harmonic resonance point — steps keep failing early and the power-factor benefit is lost whenever one drops out.", th: "ชุดคาปาซิเตอร์ที่ไม่มีรีแอกเตอร์ดีจูนอยู่ใกล้จุดเรโซแนนซ์ฮาร์มอนิกลำดับ 5 — คาปาซิเตอร์เสียก่อนกำหนดซ้ำ และประโยชน์ PF หายไปทุกครั้งที่สเต็ปหลุด" },
+    evidence: [
+      { en: "capacitor current 138% of rating", th: "กระแสคาปาซิเตอร์ 138% ของพิกัด" },
+      { en: "2 capacitor steps already failed early", th: "คาปาซิเตอร์เสียก่อนกำหนดแล้ว 2 สเต็ป" },
+      { en: "resonance near the 4.8th · 5th harmonic dominant", th: "เรโซแนนซ์ใกล้ลำดับ 4.8 · ฮาร์มอนิกลำดับ 5 เด่น" },
+    ],
+    outcome: [
+      { en: "Resonance shifted below the 5th harmonic — no more early capacitor failures", th: "เลื่อนเรโซแนนซ์ต่ำกว่าฮาร์มอนิกลำดับ 5 — คาปาซิเตอร์ไม่เสียก่อนกำหนดอีก" },
+      { en: "PF correction stays online — no lost steps or PF penalty", th: "การแก้ PF ทำงานต่อเนื่อง — ไม่มีสเต็ปหลุดหรือค่าปรับ PF" },
+      { en: "≈฿60,000/yr saved · protects the existing bank", th: "ประหยัด ≈฿60,000/ปี · ปกป้องชุดคาปาซิเตอร์เดิม" },
+    ],
+    parts: [
+      { name: { en: "Detuned reactor 7%", th: "รีแอกเตอร์ดีจูน 7%" }, brand: "Schneider", partNo: "VLVAF7L025A40", spec: "7% · 25 kVAR step · 415V", qty: 8, unit: UNIT_EA, unitPrice: 12000 },
+      { name: { en: "Capacitor 25 kVAR", th: "คาปาซิเตอร์ 25 kVAR" }, brand: "EPCOS", partNo: "B44066S3025K230", spec: "25 kVAR · 415V · heavy-duty", qty: 2, unit: UNIT_EA, unitPrice: 9500 },
+    ],
+  },
+  {
+    id: "cp-sag", severity: "critical", title: { en: "Ride-through for the sag-sensitive line", th: "ป้องกันไฟตกให้ไลน์ที่ไว" }, asset: { en: "Packing line PLC · DB-5", th: "PLC ไลน์แพ็ก · DB-5" },
+    savingYr: 1240000, capex: 850000, paybackMo: 8, roi: 146, downtime: { en: "8 h · weekend", th: "8 ชม. · เสาร์-อาทิตย์" },
+    why: { en: "Recurrent voltage sags drop out the packing-line PLCs and stop production 12× a month — the single biggest loss on the plant.", th: "ไฟตกซ้ำ ๆ ทำ PLC ไลน์แพ็กหลุดและหยุดผลิต 12 ครั้ง/เดือน — เป็นการสูญเสียก้อนใหญ่ที่สุด" },
+    evidence: [
+      { en: "12 sags to 76% for ~120 ms this month", th: "ไฟตก 12 ครั้งลงถึง 76% นาน ~120 ms เดือนนี้" },
+      { en: "DOL start of Chiller B (6× inrush) collapses the bus locally", th: "สตาร์ท DOL ของ Chiller B (กระชาก 6 เท่า) ทำแรงดันบัสตกเฉพาะจุด" },
+      { en: "3.2 h/mo line downtime logged", th: "ไลน์หยุด 3.2 ชม./เดือน" },
+    ],
+    outcome: [
+      { en: "Utility & local sags no longer stop the line", th: "ไฟตกจากการไฟฟ้า/เฉพาะจุดไม่ทำไลน์หยุดอีก" },
+      { en: "Soft-start kills Chiller B's local inrush", th: "ซอฟต์สตาร์ทกำจัดกระชากของ Chiller B" },
+      { en: "≈฿1.24M/yr of downtime & scrap avoided · payback 8 mo", th: "เลี่ยงความเสียหาย ≈฿1.24M/ปี · คืนทุน 8 เดือน" },
+    ],
+    parts: [
+      { name: { en: "Digital soft starter", th: "ซอฟต์สตาร์ทดิจิทัล" }, brand: "ABB", partNo: "PSTX300-600-70", spec: "160 kW · 415V · with bypass contactor", qty: 1, unit: UNIT_EA, unitPrice: 145000 },
+      { name: { en: "Online UPS · ride-through", th: "UPS ออนไลน์ · ride-through" }, brand: "Eaton", partNo: "93PM-30", spec: "30 kVA · online · <2 ms transfer", qty: 1, unit: UNIT_SET, unitPrice: 560000 },
+    ],
+  },
+  {
+    id: "cp-light", severity: "recommend", title: { en: "Lighting & AHU scheduling", th: "ตั้งเวลาไฟ & AHU" }, asset: { en: "Warehouse & offices", th: "คลังสินค้า & สำนักงาน" },
+    savingYr: 214000, capex: 96000, paybackMo: 5, roi: 223, downtime: { en: "none · live install", th: "ไม่ต้องหยุด · ติดตั้งขณะเดินเครื่อง" },
+    why: { en: "≈40 kW of high-bay lighting and two AHUs run through nights and weekends over empty space — pure schedule waste.", th: "ไฟไฮเบย์ ~40 kW และ AHU 2 ชุดเปิดค้างข้ามคืน/วันหยุดในพื้นที่ว่าง — เสียเปล่าจากไม่มีตารางเวลา" },
+    evidence: [
+      { en: "40 kW off-shift load on the lighting DB (metered)", th: "โหลดนอกกะ 40 kW ที่ตู้ไฟแสงสว่าง (วัดได้)" },
+      { en: "~2,900 wasted hours/yr across 5 zones", th: "~2,900 ชม./ปี ที่เสียเปล่า ใน 5 โซน" },
+    ],
+    outcome: [
+      { en: "Lights & AHUs follow a schedule and occupancy", th: "ไฟ & AHU ทำงานตามตารางและเซนเซอร์คน" },
+      { en: "Empty areas stop drawing power off-shift", th: "พื้นที่ว่างหยุดกินไฟนอกกะ" },
+      { en: "≈฿214,000/yr saved · payback 5 mo", th: "ประหยัด ≈฿214,000/ปี · คืนทุน 5 เดือน" },
+    ],
+    parts: [
+      { name: { en: "Lighting control panel", th: "ตู้ควบคุมแสงสว่าง" }, brand: "Signify", partNo: "LCN9600 DALI", spec: "24 zones · astro time-clock", qty: 1, unit: UNIT_SET, unitPrice: 62000 },
+      { name: { en: "Occupancy / daylight sensors", th: "เซนเซอร์ตรวจจับคน / แสง" }, brand: "Signify", partNo: "LRM1810", spec: "PIR + lux · wireless", qty: 24, unit: UNIT_EA, unitPrice: 1400 },
+    ],
+  },
+  {
+    id: "cp-pump", severity: "recommend", title: { en: "Right-size cooling-water pump + VFD", th: "เปลี่ยนปั๊มน้ำเย็นให้พอดี + VFD" }, asset: { en: "Cooling-water pump P-3", th: "ปั๊มน้ำเย็น P-3" },
+    savingYr: 138000, capex: 210000, paybackMo: 18, roi: 66, downtime: { en: "6 h · off-shift", th: "6 ชม. · นอกกะ" },
+    why: { en: "A 75 kW motor runs 24/7 at only 38% load and never near its efficient band — oversized and wasteful.", th: "มอเตอร์ 75 kW เดิน 24/7 ที่โหลดเพียง 38% ไม่เคยเข้าช่วงประสิทธิภาพดี — ใหญ่เกินและเปลืองไฟ" },
+    evidence: [
+      { en: "75 kW motor draws steadily at ~38% load", th: "มอเตอร์ 75 kW ดึงไฟคงที่ที่โหลด ~38%" },
+      { en: "runs continuously at a low load factor", th: "เดินต่อเนื่องที่โหลดต่ำตลอด" },
+    ],
+    outcome: [
+      { en: "Right-sized 37 kW IE4 motor runs near its efficient point", th: "มอเตอร์ IE4 37 kW ที่พอดีเดินใกล้จุดประสิทธิภาพ" },
+      { en: "VFD matches speed to the real duty — no surplus draw", th: "VFD ปรับความเร็วตามงานจริง — ไม่มีกำลังส่วนเกิน" },
+      { en: "≈฿138,000/yr saved · payback 18 mo", th: "ประหยัด ≈฿138,000/ปี · คืนทุน 18 เดือน" },
+    ],
+    parts: [
+      { name: { en: "IE4 premium motor", th: "มอเตอร์ IE4 พรีเมียม" }, brand: "ABB", partNo: "3GBP112340-ADK", spec: "37 kW · 415V · 1,480 rpm · IE4", qty: 1, unit: UNIT_EA, unitPrice: 78000 },
+      { name: { en: "Variable frequency drive", th: "อินเวอร์เตอร์ (VFD)" }, brand: "ABB", partNo: "ACS580-01-106A-4", spec: "45 kW · 415V · PID + reactor", qty: 1, unit: UNIT_EA, unitPrice: 96000 },
+    ],
+  },
+  {
+    id: "cp-voltage", severity: "recommend", title: { en: "Voltage optimisation at the incomer", th: "ปรับแรงดันที่จุดรับไฟ" }, asset: { en: "Main incomer · all feeders", th: "จุดรับไฟหลัก · ทุกฟีดเดอร์" },
+    savingYr: 246000, capex: 380000, paybackMo: 19, roi: 65, downtime: { en: "6 h · off-shift", th: "6 ชม. · นอกกะ" },
+    why: { en: "Incoming voltage holds +4% above nominal around the clock, so every voltage-dependent load (motors, lighting, heaters) draws more than it needs.", th: "แรงดันด้านเข้าค้างสูงกว่าปกติ +4% ตลอดเวลา ทำให้โหลดที่ขึ้นกับแรงดัน (มอเตอร์ ไฟ ฮีตเตอร์) ดึงไฟเกินจำเป็น" },
+    evidence: [
+      { en: "417 V held on the bus (+4.2% over 400 V nominal)", th: "แรงดันบัส 417 V (+4.2% เกิน 400 V)" },
+      { en: "~62% of load is voltage-dependent (metered)", th: "~62% ของโหลดขึ้นกับแรงดัน (วัดได้)" },
+    ],
+    outcome: [
+      { en: "Bus held at nominal — over-fluxing losses removed", th: "คุมแรงดันบัสให้อยู่ระดับปกติ — ตัดการใช้ไฟเกิน" },
+      { en: "~2–3% of voltage-dependent energy recovered · longer lamp/motor life", th: "กู้คืนพลังงานโหลดแรงดัน ~2–3% · หลอด/มอเตอร์อายุยืน" },
+      { en: "≈฿246,000/yr saved · payback 19 mo", th: "ประหยัด ≈฿246,000/ปี · คืนทุน 19 เดือน" },
+    ],
+    parts: [
+      { name: { en: "Voltage optimisation unit", th: "ชุดปรับแรงดัน" }, brand: "Powerstar", partNo: "MAX-2000", spec: "2,000 kVA · -4% to 0 · auto-tap", qty: 1, unit: UNIT_SET, unitPrice: 340000 },
+      { name: { en: "Transformer tap change", th: "ปรับแท็ปหม้อแปลง" }, brand: "Service", partNo: "—", spec: "off-load · one step", qty: 1, unit: UNIT_LOT, unitPrice: 18000 },
+    ],
+  },
+  {
+    id: "cp-distpf", severity: "recommend", title: { en: "Distributed PF at the moulding feeder", th: "ชดเชย PF เฉพาะจุดที่ไลน์ฉีด" }, asset: { en: "Feeder-3 · injection moulding", th: "ฟีดเดอร์ 3 · ไลน์ฉีดพลาสติก" },
+    savingYr: 132000, capex: 160000, paybackMo: 15, roi: 83, downtime: { en: "3 h · off-shift", th: "3 ชม. · นอกกะ" },
+    why: { en: "Feeder-3 runs at PF 0.71 with reactive current the central bank can't relieve — it overloads the cable and drags whole-plant PF down.", th: "ฟีดเดอร์ 3 เดินที่ PF 0.71 มีกระแสรีแอกทีฟที่ชุดกลางช่วยไม่ได้ — สายรับโหลดหนักและ PF รวมตก" },
+    evidence: [
+      { en: "Feeder PF 0.71 · 220 kVAR reactive", th: "PF ฟีดเดอร์ 0.71 · รีแอกทีฟ 220 kVAR" },
+      { en: "cable loading 83% (metered)", th: "สายรับโหลด 83% (วัดได้)" },
+    ],
+    outcome: [
+      { en: "Reactive current never travels down the feeder cable", th: "กระแสรีแอกทีฟไม่วิ่งผ่านสายฟีดเดอร์" },
+      { en: "~13% of cable capacity freed · whole-plant PF up", th: "คืนพิกัดสาย ~13% · PF รวมดีขึ้น" },
+      { en: "≈฿132,000/yr saved · payback 15 mo", th: "ประหยัด ≈฿132,000/ปี · คืนทุน 15 เดือน" },
+    ],
+    parts: [
+      { name: { en: "Local PF capacitor bank", th: "ตู้คาปาซิเตอร์ PF เฉพาะจุด" }, brand: "Schneider", partNo: "VLVAW6N200A40", spec: "200 kVAR · 6-step · detuned 7% · 415V", qty: 1, unit: UNIT_SET, unitPrice: 145000 },
+    ],
+  },
+  {
+    id: "cp-ahf", severity: "warning", title: { en: "Active harmonic filter on the VFD bus", th: "Active Harmonic Filter ที่บัส VFD" }, asset: { en: "MDB-A · VFD-rich load", th: "MDB-A · โหลด VFD หนาแน่น" },
+    savingYr: 156000, capex: 720000, paybackMo: 55, roi: 22, downtime: { en: "1 day · weekend", th: "1 วัน · เสาร์-อาทิตย์" },
+    why: { en: "Harmonic-rich drives distort the current, derate the transformer and cause extra losses across the plant.", th: "ไดรฟ์ที่มีฮาร์มอนิกสูงทำกระแสเพี้ยน ลดพิกัดหม้อแปลง และเพิ่มการสูญเสียทั่วโรงงาน" },
+    evidence: [
+      { en: "current THD above the IEEE-519 limit at MDB-A", th: "THD กระแสเกินเกณฑ์ IEEE-519 ที่ MDB-A" },
+      { en: "transformer derated ~7% for the harmonic load", th: "หม้อแปลงถูกลดพิกัด ~7% จากโหลดฮาร์มอนิก" },
+    ],
+    outcome: [
+      { en: "THD pulled under IEEE-519 — clean current", th: "ดึง THD ต่ำกว่า IEEE-519 — กระแสสะอาด" },
+      { en: "~7% transformer capacity recovered · lower losses", th: "กู้พิกัดหม้อแปลง ~7% · การสูญเสียลดลง" },
+      { en: "≈฿156,000/yr saved · frees capacity for growth", th: "ประหยัด ≈฿156,000/ปี · เปิดพิกัดรองรับการขยาย" },
+    ],
+    parts: [
+      { name: { en: "Active harmonic filter (AHF)", th: "Active Harmonic Filter (AHF)" }, brand: "ABB", partNo: "PQFI-100", spec: "100 A · 415V · IGBT · wall-mount", qty: 1, unit: UNIT_SET, unitPrice: 620000 },
+      { name: { en: "Line reactor 5%", th: "ไลน์รีแอกเตอร์ 5%" }, brand: "Schaffner", partNo: "RWK305-45", spec: "5% · 45 kW · per drive", qty: 6, unit: UNIT_EA, unitPrice: 6500 },
+    ],
+  },
+  {
+    id: "cp-neutral", severity: "warning", title: { en: "Fix triplen-harmonic neutral overload", th: "แก้สายนิวทรัลรับโหลดเกิน (ฮาร์มอนิกลำดับ 3)" }, asset: { en: "Office & QC panel · DB-3", th: "ตู้สำนักงาน & QC · DB-3" },
+    savingYr: 84000, capex: 260000, paybackMo: 37, roi: 32, downtime: { en: "4 h · off-shift", th: "4 ชม. · นอกกะ" },
+    why: { en: "Hundreds of single-phase electronic loads pump 3rd-harmonic current into the shared neutral, overloading it and blocking any added load on the panel.", th: "โหลดเฟสเดียวอิเล็กทรอนิกส์นับร้อยอัดกระแสฮาร์มอนิกลำดับ 3 เข้าสายนิวทรัลร่วม ทำให้รับโหลดเกินและเพิ่มโหลดที่ตู้ไม่ได้" },
+    evidence: [
+      { en: "neutral current 118% of the average phase current", th: "กระแสนิวทรัล 118% ของกระแสเฉลี่ยต่อเฟส" },
+      { en: "3rd-harmonic current 14% (limit 5%)", th: "ฮาร์มอนิกที่ 3 (กระแส) 14% (เกณฑ์ 5%)" },
+    ],
+    outcome: [
+      { en: "Triplen harmonics trapped — neutral current back to safe", th: "ดักฮาร์มอนิกลำดับ 3 — กระแสนิวทรัลกลับสู่ปลอดภัย" },
+      { en: "Panel freed to take new load · fire risk removed", th: "ตู้รับโหลดเพิ่มได้ · ตัดความเสี่ยงไฟไหม้" },
+      { en: "≈฿84,000/yr saved · payback 37 mo", th: "ประหยัด ≈฿84,000/ปี · คืนทุน 37 เดือน" },
+    ],
+    parts: [
+      { name: { en: "Harmonic-mitigating transformer", th: "หม้อแปลงลดฮาร์มอนิก" }, brand: "MTE", partNo: "HGP-150-K13", spec: "Zig-zag · 150 kVA · K-13", qty: 1, unit: UNIT_SET, unitPrice: 210000 },
+      { name: { en: "Neutral busbar upgrade", th: "อัปเกรดบัสบาร์นิวทรัล" }, brand: "—", partNo: "—", spec: "200% neutral · copper", qty: 1, unit: UNIT_LOT, unitPrice: 28000 },
+    ],
+  },
+];
+
 /* ------------------------------------------------ optimization control tools */
 
 /** Loads a peak-demand controller can shed, listed in priority (shed #1 first). */
@@ -999,14 +1237,15 @@ export const startupCandidates: StartupLoad[] = startupPool.slice(6);
 /** Current registered demand (kW) shown in the peak manager. */
 export const peakNow = 3060;
 
-/** Machines the idle-standby manager watches; `idleFor` = current minutes idle. */
-export const idleMachinesCtl: { id: string; name: string; area: LZ; idleFor: number; idleKw: number }[] = [
-  { id: "cnc-04", name: "CNC-04", area: { en: "Machining", th: "งานกลึง/มิลลิ่ง" }, idleFor: 22, idleKw: 4.5 },
-  { id: "cnc-07", name: "CNC-07", area: { en: "Machining", th: "งานกลึง/มิลลิ่ง" }, idleFor: 17, idleKw: 4.2 },
-  { id: "press-02", name: "Press-02", area: { en: "Stamping", th: "งานปั๊มขึ้นรูป" }, idleFor: 9, idleKw: 6.0 },
-  { id: "inj-03", name: "Injection-03", area: { en: "Moulding", th: "ไลน์ฉีดพลาสติก" }, idleFor: 41, idleKw: 5.5 },
-  { id: "conv-a", name: "Conveyor-A", area: { en: "Packing", th: "ไลน์แพ็ก" }, idleFor: 6, idleKw: 2.0 },
-  { id: "weld-05", name: "Welder-05", area: { en: "Fabrication", th: "งานเชื่อม/ประกอบ" }, idleFor: 28, idleKw: 3.8 },
+/** Machines the idle-standby manager watches; `idleFor` = current minutes idle,
+ *  `idleTodayH` = cumulative hours drawn idle during production so far today. */
+export const idleMachinesCtl: { id: string; name: string; area: LZ; idleFor: number; idleKw: number; idleTodayH: number }[] = [
+  { id: "cnc-04", name: "CNC-04", area: { en: "Machining", th: "งานกลึง/มิลลิ่ง" }, idleFor: 22, idleKw: 4.5, idleTodayH: 2.6 },
+  { id: "cnc-07", name: "CNC-07", area: { en: "Machining", th: "งานกลึง/มิลลิ่ง" }, idleFor: 17, idleKw: 4.2, idleTodayH: 2.1 },
+  { id: "press-02", name: "Press-02", area: { en: "Stamping", th: "งานปั๊มขึ้นรูป" }, idleFor: 9, idleKw: 6.0, idleTodayH: 1.2 },
+  { id: "inj-03", name: "Injection-03", area: { en: "Moulding", th: "ไลน์ฉีดพลาสติก" }, idleFor: 41, idleKw: 5.5, idleTodayH: 3.8 },
+  { id: "conv-a", name: "Conveyor-A", area: { en: "Packing", th: "ไลน์แพ็ก" }, idleFor: 6, idleKw: 2.0, idleTodayH: 0.9 },
+  { id: "weld-05", name: "Welder-05", area: { en: "Fabrication", th: "งานเชื่อม/ประกอบ" }, idleFor: 28, idleKw: 3.8, idleTodayH: 3.0 },
 ];
 
 /* ------------------------------------------------------------------ reports */

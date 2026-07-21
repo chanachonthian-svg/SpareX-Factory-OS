@@ -17,7 +17,7 @@ export const brainDict: TrDict = {
   "Open Risks": { th: "ความเสี่ยงที่เปิดอยู่", ja: "未対応リスク", zh: "未处理风险" },
 
   // —— executive briefing · letterhead / health card ——
-  "Live": { th: "สด", ja: "ライブ", zh: "实时" },
+  "Live": { th: "ขณะนี้", ja: "ライブ", zh: "实时" },
   "Good": { th: "ดี", ja: "良好", zh: "良好" },
   "vs. last week": { th: "เทียบสัปดาห์ก่อน", ja: "先週比", zh: "较上周" },
 

@@ -5,20 +5,21 @@ import { motion } from "framer-motion";
 import {
   Leaf, Sprout, TreePine, Globe2, Recycle, Sun, Factory, Zap, Flame, Truck,
   Gauge, Target, TrendingDown, TrendingUp, Award, BadgeCheck, ShieldCheck,
-  FileText, Download, Sparkles, Activity, Wrench, Plus, Check, Car, House, Plane,
-  Eye, ExternalLink, FileDown,
+  FileText, Download, Plus, Check, Car, House, Plane,
+  Eye, ExternalLink, FileDown, Database,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
-import { AskCopilot } from "@/components/os/AskCopilot";
+import { WorkflowBar } from "@/components/os/WorkflowNav";
 import { KpiCard } from "@/components/os/KpiCard";
 import { StackedBars, HBars, MultiLine } from "@/components/os/charts";
 import { createWorkOrder, useWorkOrders } from "@/lib/workorders";
 import { cn } from "@/lib/utils";
 import {
-  type CZ, kpi, sparks, reportPeriod, emissionsTrend, bySource, scope3, scope2Dual,
+  type CZ, kpi, sparks, reportPeriod, emissionsTrend, bySource, scope3, scope2Dual, scope1Categories, activityData,
   glidepath, target2030, hotspots, macc, products, credits, abatedYtd, equivalents,
-  standards, baht,
+  standards, baht, decouplingTrend, creditPipeline, cbamExposure,
 } from "@/lib/carbon";
+import { DigitalTwin } from "@/components/twin/DigitalTwin";
 import {
   enms, energyPolicy, energySources, seus, enpis, enpiTrend, actionPlans, mv,
   managementReview, enmsStandards,
@@ -27,51 +28,23 @@ import {
 const ECO = "#34d399";
 const SCOPE = { s1: "#f59e0b", s2: "#22d3ee", s3: "#a78bfa" };
 
-type Tab = "overview" | "monitor" | "analyze" | "act" | "report";
-
 export function CarbonSuite() {
   const { locale } = useI18n();
   const L = (o: CZ) => (locale === "th" ? o.th : o.en);
-  const [tab, setTab] = useState<Tab>("overview");
-
-  const TABS: { id: Tab; label: CZ; icon: typeof Gauge }[] = [
-    { id: "overview", label: { en: "Overview", th: "ภาพรวม" }, icon: Gauge },
-    { id: "monitor", label: { en: "Monitor", th: "ติดตาม" }, icon: Activity },
-    { id: "analyze", label: { en: "Analyze", th: "วิเคราะห์" }, icon: Sparkles },
-    { id: "act", label: { en: "Act", th: "ลงมือ" }, icon: Wrench },
-    { id: "report", label: { en: "Report", th: "รายงาน" }, icon: FileText },
-  ];
+  const [step, setStep] = useState(0);
 
   return (
     <div className="space-y-6">
       <EcoHero L={L} locale={locale} />
 
-      {/* tab bar */}
-      <div className="flex flex-wrap gap-1.5">
-        {TABS.map((t) => {
-          const on = tab === t.id;
-          const Ico = t.icon;
-          return (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-[13px] font-medium transition",
-                on ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-200" : "border-white/10 bg-white/[0.03] text-white/55 hover:text-white/85",
-              )}
-            >
-              <Ico size={15} /> {L(t.label)}
-              {t.id === "analyze" || t.id === "act" ? <span className="rounded-full bg-emerald-400/20 px-1.5 text-[9px] font-semibold text-emerald-200">AI</span> : null}
-            </button>
-          );
-        })}
-      </div>
+      {/* 5-step FactoryOS workflow: 01 Monitor · 02 Insight · 03 AI Analysis · 04 AI Recommendation & Action · 05 Report */}
+      <WorkflowBar step={step} setStep={setStep} L={L} />
 
-      {tab === "overview" && <OverviewTab L={L} />}
-      {tab === "monitor" && <MonitorTab L={L} />}
-      {tab === "analyze" && <AnalyzeTab L={L} />}
-      {tab === "act" && <ActTab L={L} locale={locale} />}
-      {tab === "report" && <ReportTab L={L} locale={locale} />}
+      {step === 0 && <MonitorTab L={L} />}
+      {step === 1 && <OverviewTab L={L} />}
+      {step === 2 && <AnalyzeTab L={L} />}
+      {step === 3 && <ActTab L={L} locale={locale} />}
+      {step === 4 && <ReportTab L={L} locale={locale} />}
     </div>
   );
 }
@@ -88,8 +61,8 @@ function EcoHero({ L, locale }: { L: (o: CZ) => string; locale: string }) {
           <Leaf size={26} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-emerald-300/70">{L({ en: "Module 07 · ESG you can audit", th: "โมดูล 07 · ESG ที่ตรวจสอบได้จริง" })}</p>
-          <h1 className="mt-1 flex items-center gap-2 text-2xl font-semibold tracking-tight">{L({ en: "Carbon Intelligence Suite", th: "ชุดอัจฉริยะจัดการคาร์บอน" })}<span className="text-sm text-emerald-300">™</span></h1>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-emerald-300/70">{L({ en: "Carbon Intelligence Suite · ESG you can audit", th: "Carbon Intelligence Suite · ESG ที่ตรวจสอบได้จริง" })}</p>
+          <h1 className="mt-1 flex items-center gap-2 text-2xl font-semibold tracking-tight">Sustainability Intelligence<span className="text-sm text-emerald-300">™</span></h1>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/60">{L({ en: "Real-time Scope 1·2·3 accounting, product carbon footprint, and audit-ready ESG reporting — with an AI roadmap that turns emissions into ranked reduction projects and verified carbon credits.", th: "บัญชีคาร์บอน Scope 1·2·3 เรียลไทม์, คาร์บอนต่อสินค้า และรายงาน ESG พร้อมตรวจสอบ — พร้อม AI ที่เปลี่ยนการปล่อยคาร์บอนเป็นโครงการลดที่จัดอันดับแล้ว และคาร์บอนเครดิตที่รับรองได้" })}</p>
         </div>
         <div className="flex flex-col items-end gap-2">
@@ -97,14 +70,9 @@ function EcoHero({ L, locale }: { L: (o: CZ) => string; locale: string }) {
             <p className="text-3xl font-semibold tabular text-emerald-300">{kpi.traceability}%</p>
             <p className="text-[11px] uppercase tracking-wider text-white/40">{L({ en: "ESG traceability", th: "ตรวจสอบย้อนกลับได้" })}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <AskCopilot prompt={locale === "th" ? "สร้างรายงาน ESG ไตรมาสนี้" : "Generate an ESG report for this quarter"} className="btn-ghost px-3.5 py-2 text-sm">
-              <Sparkles size={14} /> {L({ en: "Ask Copilot", th: "ถาม Copilot" })}
-            </AskCopilot>
-            <button onClick={() => printReport(buildReportHtml(locale))} className="btn-glow px-3.5 py-2 text-sm">
-              <FileDown size={14} /> {L({ en: "PDF report", th: "รายงาน PDF" })}
-            </button>
-          </div>
+          <button onClick={() => printReport(buildReportHtml(locale))} className="btn-glow px-3.5 py-2 text-sm">
+            <FileDown size={14} /> {L({ en: "PDF report", th: "รายงาน PDF" })}
+          </button>
         </div>
       </div>
     </section>
@@ -151,7 +119,7 @@ function OverviewTab({ L }: { L: (o: CZ) => string }) {
         <div className="relative grid gap-6 lg:grid-cols-[1fr_1.1fr]">
           <div>
             <span className="chip border-emerald-400/30 bg-emerald-400/10 text-emerald-300"><Award size={13} /> {L({ en: "Carbon credits", th: "คาร์บอนเครดิต" })} · {credits.registry}</span>
-            <h3 className="mt-3 text-lg font-semibold">{L({ en: "Run on SpareX → your carbon credits grow", th: "ใช้ SpareX แล้ว คาร์บอนเครดิตเพิ่มขึ้น" })}</h3>
+            <h3 className="mt-3 text-lg font-semibold">{L({ en: "Run on SpareX → Your Carbon Credits Grow", th: "ใช้ SpareX แล้ว คาร์บอนเครดิตเพิ่มขึ้น" })}</h3>
             <p className="mt-1.5 text-sm leading-relaxed text-white/60">{L({ en: "Every verified tonne you abate becomes a registrable T-VER credit. SpareX finds, executes and measures more reductions — so you register far more credits than business-as-usual.", th: "ทุกตันที่ลดได้และรับรองแล้ว = เครดิต T-VER ที่ขึ้นทะเบียนได้ SpareX ช่วยหา ลงมือ และวัดผลได้มากกว่าเดิม คุณจึงได้เครดิตมากกว่าการทำแบบเดิมมาก" })}</p>
             <div className="mt-4 grid grid-cols-3 gap-3">
               <Metric big={`${credits.earnedYtd.toLocaleString()}`} unit="tCO₂e" sub={L({ en: "Credits YTD", th: "เครดิตสะสมปีนี้" })} accent={ECO} />
@@ -177,12 +145,85 @@ function OverviewTab({ L }: { L: (o: CZ) => string }) {
         </div>
       </section>
 
+      {/* credit pipeline + decoupling — the two "so what" reads investors ask for */}
+      <section className="grid gap-6 lg:grid-cols-[1fr_1.5fr]">
+        <Card title={L({ en: "Credit Pipeline", th: "เครดิตอยู่ขั้นไหนแล้ว" })} sub={L({ en: "How far each verified tonne is from sellable", th: "แต่ละตันห่างจากขายได้อีกกี่ขั้น" })}>
+          <div className="space-y-3">
+            {creditPipeline.map((p, i) => {
+              const max = Math.max(...creditPipeline.map((x) => x.tco2e));
+              return (
+                <div key={p.stage.en}>
+                  <div className="flex items-baseline justify-between text-[12px]">
+                    <span className="font-medium text-white/75">{L(p.stage)}</span>
+                    <span className="tabular font-semibold" style={{ color: i === 0 ? ECO : "#94a3b8" }}>{p.tco2e.toLocaleString()} tCO₂e</span>
+                  </div>
+                  <div className="mt-1 h-2.5 overflow-hidden rounded-full bg-white/8">
+                    <div className="h-full rounded-full" style={{ width: `${(p.tco2e / max) * 100}%`, backgroundColor: i === 0 ? ECO : i === 1 ? "#22d3ee" : "#64748b" }} />
+                  </div>
+                  <p className="mt-0.5 text-[10.5px] text-white/40">{L(p.note)}</p>
+                </div>
+              );
+            })}
+          </div>
+          <p className="mt-4 rounded-lg border border-emerald-400/20 bg-emerald-400/[0.06] px-3 py-2 text-[12px] text-emerald-200">
+            {L({
+              en: `Issued credits worth ${baht(creditPipeline[0].tco2e * credits.bahtPerCredit)} · ${(creditPipeline[1].tco2e + creditPipeline[2].tco2e).toLocaleString()} tCO₂e more in the pipe`,
+              th: `เครดิตที่ออกแล้วมูลค่า ${baht(creditPipeline[0].tco2e * credits.bahtPerCredit)} · รออีก ${(creditPipeline[1].tco2e + creditPipeline[2].tco2e).toLocaleString()} tCO₂e ในไปป์ไลน์`,
+            })}
+          </p>
+        </Card>
+        <Card title={L({ en: "Growth–Carbon Decoupling", th: "โตขึ้นแต่คาร์บอนลด" })} sub={L({ en: "Output climbs while emissions fall — growth ≠ carbon", th: "ผลผลิตขึ้น การปล่อยลง — พิสูจน์ว่าโตได้โดยไม่เพิ่มคาร์บอน" })}>
+          <MultiLine
+            data={decouplingTrend}
+            height={210}
+            lines={[
+              { key: "output", color: "#22d3ee", name: L({ en: "Output (index)", th: "ผลผลิต (ดัชนี)" }) },
+              { key: "emissions", color: ECO, name: L({ en: "Emissions (index)", th: "การปล่อย (ดัชนี)" }) },
+            ]}
+          />
+          <div className="mt-2 flex flex-wrap items-center gap-4 text-[11px]">
+            <Legend color="#22d3ee" label={L({ en: "Output (Jan = 100)", th: "ผลผลิต (ม.ค. = 100)" })} />
+            <Legend color={ECO} label={L({ en: "Emissions (Jan = 100)", th: "การปล่อย (ม.ค. = 100)" })} />
+            <span className="ml-auto text-white/50">
+              {L({
+                en: `+${decouplingTrend[decouplingTrend.length - 1].output - 100}% output · −${100 - decouplingTrend[decouplingTrend.length - 1].emissions}% carbon since Jan`,
+                th: `ตั้งแต่ ม.ค.: ผลผลิต +${decouplingTrend[decouplingTrend.length - 1].output - 100}% · คาร์บอน −${100 - decouplingTrend[decouplingTrend.length - 1].emissions}%`,
+              })}
+            </span>
+          </div>
+        </Card>
+      </section>
+
+      {/* product carbon footprint — the number EU customers actually ask for */}
+      <Card title={L({ en: "Product Carbon Footprint", th: "คาร์บอนต่อชิ้นสินค้า (PCF)" })} sub={L({ en: "Which product carries the most carbon per unit", th: "สินค้าไหนแบกคาร์บอนต่อชิ้นสูงสุด — ตัวเลขที่ลูกค้า EU ขอ" })}>
+        <div className="grid gap-2.5 sm:grid-cols-2">
+          {[...products].sort((a, b) => b.kg - a.kg).map((p) => (
+            <div key={p.sku} className="flex items-center gap-3 rounded-xl border border-white/8 bg-white/[0.02] px-3.5 py-2.5">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[13px] font-medium">{L(p.name)}</p>
+                  {p.cbam ? <span className="chip border-amber-400/30 bg-amber-400/10 text-[10px] text-amber-300">CBAM</span> : null}
+                </div>
+                <p className="mt-0.5 font-mono text-[10px] text-white/35">{p.sku} · {L({ en: "market", th: "ตลาด" })}: {L(p.market)}</p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="tabular text-lg font-semibold" style={{ color: p.kg >= 5 ? "#f59e0b" : ECO }}>{p.kg.toFixed(2)}</p>
+                <p className="text-[10px] text-white/40">kgCO₂e/{L({ en: "unit", th: "ชิ้น" })}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-[11px] leading-relaxed text-white/40">
+          {L({ en: "Cradle-to-gate · energy + materials allocated per unit from the same meters as Scope 1·2", th: "แบบ cradle-to-gate · ปันส่วนพลังงาน + วัตถุดิบต่อชิ้น จากมิเตอร์ชุดเดียวกับ Scope 1·2" })}
+        </p>
+      </Card>
+
       {/* real-world impact */}
       <section className="panel relative overflow-hidden p-6">
         <div className="flex flex-wrap items-center gap-3">
           <span className="grid h-10 w-10 place-items-center rounded-xl border border-emerald-400/30 bg-emerald-400/10 text-emerald-300"><Globe2 size={20} /></span>
           <div>
-            <h3 className="font-semibold">{L({ en: "What your reductions mean for the planet", th: "สิ่งที่การลดคาร์บอนของคุณช่วยโลก" })}</h3>
+            <h3 className="font-semibold">{L({ en: "What Your Reductions Mean for the Planet", th: "สิ่งที่การลดคาร์บอนของคุณช่วยโลก" })}</h3>
             <p className="text-xs text-white/45">{L({ en: `${abatedYtd.toLocaleString()} tCO₂e abated year-to-date · equivalent to`, th: `ลดได้ ${abatedYtd.toLocaleString()} tCO₂e ปีนี้ · เทียบเท่ากับ` })}</p>
           </div>
         </div>
@@ -199,13 +240,33 @@ function OverviewTab({ L }: { L: (o: CZ) => string }) {
 
 /* ──────────────────────────────────────────────────────── monitor ── */
 
+/** A muted "where this number comes from" line — shows customers the data provenance
+ *  (in a live deployment these are real meters / ERP feeds; in the demo they're mocked). */
+function SourceNote({ L, note }: { L: (o: CZ) => string; note: CZ }) {
+  return (
+    <p className="mt-3 flex items-start gap-1.5 border-t border-white/8 pt-2.5 text-[10.5px] leading-snug text-white/40">
+      <Database size={11} className="mt-0.5 shrink-0 text-emerald-300/70" />
+      <span><span className="font-medium text-white/50">{L({ en: "Source", th: "แหล่งข้อมูล" })}:</span> {L(note)}</span>
+    </p>
+  );
+}
+
 function MonitorTab({ L }: { L: (o: CZ) => string }) {
-  const src = bySource.map((s) => ({ name: `${L(s.name)} (S${s.scope})`, value: s.value }));
+  const src = bySource.map((s) => ({ name: `${L(s.name)} (Scope ${s.scope})`, value: s.value }));
   const s3 = scope3.map((s) => ({ name: L(s.name), value: s.value }));
   return (
     <div className="space-y-6">
+      {/* the same live 3D plant as Digital Twin, opened on the carbon layer —
+          emissions stop being a spreadsheet and become a place on the floor */}
+      <Card
+        title={L({ en: "Carbon Twin · Live 3D", th: "Carbon Twin · แผนที่ 3D เรียลไทม์" })}
+        sub={L({ en: "Where CO₂ leaves the plant, machine by machine", th: "คาร์บอนออกจากตรงไหน ดูเป็นรายเครื่องบนผังโรงงาน" })}
+      >
+        <DigitalTwin defaultLayer="carbon" layers={["carbon", "energy", "cost"]} showInspector={false} height="h-[380px] sm:h-[460px]" />
+      </Card>
+
       <section className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-        <Card title={L({ en: "Emissions trend · Scope 1·2·3", th: "แนวโน้มการปล่อย · Scope 1·2·3" })} sub="tCO₂e / month" right={<span className="chip text-emerald-300">-8% YoY</span>}>
+        <Card title={L({ en: "Emissions Trend", th: "แนวโน้มการปล่อย" })} sub={L({ en: "Is total carbon trending down · Scope 1·2·3", th: "คาร์บอนรวมลดลงไหม · Scope 1·2·3" })} right={<span className="chip text-emerald-300">-8% YoY</span>}>
           <StackedBars
             data={emissionsTrend}
             height={280}
@@ -218,16 +279,34 @@ function MonitorTab({ L }: { L: (o: CZ) => string }) {
           <div className="mt-2 flex items-center gap-4 text-[11px]">
             <Legend color={SCOPE.s1} label="Scope 1" /><Legend color={SCOPE.s2} label="Scope 2" /><Legend color={SCOPE.s3} label="Scope 3" />
           </div>
+          <SourceNote L={L} note={{ en: "fuel meters + PM power meters + ERP — each × its TGO emission factor", th: "มิเตอร์เชื้อเพลิง + มิเตอร์ไฟ PM + ERP — แต่ละตัวคูณ emission factor (TGO)" }} />
         </Card>
-        <Card title={L({ en: "Emissions by source · MTD", th: "แหล่งปล่อย · เดือนนี้" })} sub="tCO₂e (Scope 1·2)">
+        <Card title={L({ en: "Emissions by Source", th: "แหล่งปล่อย" })} sub={L({ en: "Which processes emit the most", th: "กระบวนการไหนปล่อยมากสุด" })}>
           <HBars data={src} color={ECO} />
+          <SourceNote L={L} note={{ en: "per-point meters & fuel logs, tagged to each process", th: "มิเตอร์รายจุด & บันทึกเชื้อเพลิง แท็กตามแต่ละกระบวนการ" }} />
         </Card>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-2">
-        <Card title={L({ en: "Scope 2 · market vs location", th: "Scope 2 · market vs location" })} sub={L({ en: "GHG Protocol dual reporting", th: "รายงานคู่ตาม GHG Protocol" })}>
+      <section className="grid gap-6 lg:grid-cols-3">
+        <Card title="Scope 1" sub={L({ en: "Direct emissions · combustion & fugitive", th: "การปล่อยตรง · เผาไหม้ & รั่วไหล" })}>
+          <div className="flex items-baseline gap-1.5"><p className="tabular text-3xl font-semibold" style={{ color: SCOPE.s1 }}>{kpi.scope1}</p><span className="text-sm text-white/40">tCO₂e</span></div>
+          <p className="text-[11px] text-white/45">{L({ en: "month-to-date · your own combustion", th: "เดือนนี้ · เผาไหม้ในโรงงานเอง" })}</p>
+          <p className="mt-4 mb-2 text-[11px] font-medium uppercase tracking-wider text-white/40">{L({ en: "By GHG category", th: "แยกตามหมวด GHG" })}</p>
+          <HBars data={scope1Categories.map((c) => ({ name: L(c.name), value: c.value }))} color={SCOPE.s1} height={0} />
+          <p className="mt-4 mb-2 text-[11px] font-medium uppercase tracking-wider text-white/40">{L({ en: "Activity data · MTD", th: "ปริมาณที่วัดได้จริง · เดือนนี้" })}</p>
+          <div className="space-y-1.5">
+            {activityData.scope1.map((a) => (
+              <div key={a.name.en} className="flex items-baseline justify-between gap-3 text-[12px]">
+                <span className="text-white/55">{L(a.name)}</span>
+                <span className="tabular shrink-0 font-medium text-white/75">{a.qty} <span className="text-[10px] font-normal text-white/40">{a.unit}</span></span>
+              </div>
+            ))}
+          </div>
+          <SourceNote L={L} note={{ en: "fuel/steam meters + refrigerant logs · × TGO combustion factors", th: "มิเตอร์เชื้อเพลิง/ไอน้ำ + บันทึกสารทำความเย็น · × แฟกเตอร์เผาไหม้ (TGO)" }} />
+        </Card>
+        <Card title="Scope 2" sub={L({ en: "Market vs Location · GHG Protocol dual reporting", th: "market vs location · รายงานคู่ตาม GHG Protocol" })}>
           <div className="grid grid-cols-2 gap-3">
-            <Metric big={`${scope2Dual.locationBased}`} unit="tCO₂e" sub={L({ en: "Location-based", th: "อิงค่าเฉลี่·ริด" })} accent="#94a3b8" />
+            <Metric big={`${scope2Dual.locationBased}`} unit="tCO₂e" sub={L({ en: "Location-based", th: "อิงค่าเฉลี่ยกริด" })} accent="#94a3b8" />
             <Metric big={`${scope2Dual.marketBased}`} unit="tCO₂e" sub={L({ en: "Market-based", th: "หลังหักพลังงานสะอาด" })} accent={ECO} down />
           </div>
           <p className="mt-4 mb-2 text-[11px] font-medium uppercase tracking-wider text-white/40">{L({ en: "Electricity mix", th: "สัดส่วนพลังงานไฟฟ้า" })}</p>
@@ -240,9 +319,25 @@ function MonitorTab({ L }: { L: (o: CZ) => string }) {
           <div className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-2.5 py-1.5 text-[12px] text-emerald-200">
             <Sun size={13} /> {scope2Dual.renewablePct}% {L({ en: "renewable electricity (RE100 track)", th: "พลังงานสะอาด (เส้นทาง RE100)" })}
           </div>
+          <p className="mt-4 mb-2 text-[11px] font-medium uppercase tracking-wider text-white/40">{L({ en: "Activity data · MTD", th: "ปริมาณที่วัดได้จริง · เดือนนี้" })}</p>
+          <div className="space-y-1.5">
+            <div className="flex items-baseline justify-between gap-3 text-[12px]">
+              <span className="text-white/55">{L({ en: "Electricity consumed", th: "ไฟฟ้าที่ใช้" })}</span>
+              <span className="tabular shrink-0 font-medium text-white/75">{activityData.scope2.mwh} <span className="text-[10px] font-normal text-white/40">MWh</span></span>
+            </div>
+            <div className="flex items-baseline justify-between gap-3 text-[12px]">
+              <span className="text-white/55">{L({ en: "Grid emission factor", th: "แฟกเตอร์กริดไฟฟ้า" })}</span>
+              <span className="tabular shrink-0 font-medium text-white/75">{activityData.scope2.gridFactor} <span className="text-[10px] font-normal text-white/40">kgCO₂e/kWh · {activityData.scope2.factorSource}</span></span>
+            </div>
+          </div>
+          <SourceNote L={L} note={{ en: "the same PM power meters as Energy Intelligence + grid factor · PPA/I-REC certificates for market-based", th: "มิเตอร์ไฟ PM ตัวเดียวกับ Energy Intelligence + grid factor · ใบ PPA/I-REC สำหรับ market-based" }} />
         </Card>
-        <Card title={L({ en: "Scope 3 · value chain", th: "Scope 3 · ห่วงโซ่คุณค่า" })} sub={L({ en: "tCO₂e · CSRD / ISSB disclosable", th: "tCO₂e · เปิดเผยตาม CSRD / ISSB" })}>
+        <Card title="Scope 3" sub={L({ en: "Carbon across your supply chain · CSRD / ISSB disclosable", th: "คาร์บอนจากซัพพลายเชน · เปิดเผยตาม CSRD / ISSB" })}>
           <HBars data={s3} color={SCOPE.s3} />
+          <div className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-violet-400/25 bg-violet-400/10 px-2.5 py-1.5 text-[12px] text-violet-200">
+            <BadgeCheck size={13} /> {L({ en: `${activityData.scope3Coverage.measured} of ${activityData.scope3Coverage.total} GHG categories measured · ${activityData.scope3Coverage.spendPct}% of spend`, th: `วัดแล้ว ${activityData.scope3Coverage.measured} จาก ${activityData.scope3Coverage.total} หมวด GHG · ครอบคลุม ${activityData.scope3Coverage.spendPct}% ของยอดจัดซื้อ` })}
+          </div>
+          <SourceNote L={L} note={{ en: "ERP / procurement + logistics records · spend- & activity-based factors", th: "ERP/จัดซื้อ + บันทึกขนส่ง · แฟกเตอร์แบบ spend & activity" }} />
         </Card>
       </section>
     </div>
@@ -256,7 +351,7 @@ function AnalyzeTab({ L }: { L: (o: CZ) => string }) {
   return (
     <div className="space-y-6">
       <section className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-        <Card title={L({ en: "Net-zero glidepath · SBTi", th: "เส้นทางสู่ Net-Zero · SBTi" })} sub={L({ en: `Science-based target: -${target2030.reductionPct}% by 2030`, th: `เป้าตามหลักวิทยาศาสตร์: ลด ${target2030.reductionPct}% ภายในปี 2030` })}>
+        <Card title={L({ en: "Net-Zero Glidepath", th: "เส้นทางสู่ Net-Zero" })} sub={L({ en: `SBTi · Science-based target: -${target2030.reductionPct}% by 2030`, th: `SBTi · เป้าตามหลักวิทยาศาสตร์: ลด ${target2030.reductionPct}% ภายในปี 2030` })}>
           <MultiLine
             data={glidepath}
             height={280}
@@ -289,7 +384,12 @@ function AnalyzeTab({ L }: { L: (o: CZ) => string }) {
         </div>
       </section>
 
-      <Card title={L({ en: "AI emission hotspots", th: "จุดร้อนการปล่อ·ี่ AI ตรวจพบ" })} sub={L({ en: "Where carbon is coming from — and what's driving it", th: "คาร์บอนมาจากไหน และอะไรเป็นตัวขับ" })}>
+      <section className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+        <ScenarioSim L={L} />
+        <CbamCard L={L} />
+      </section>
+
+      <Card title={L({ en: "AI Emission Hotspots", th: "จุดร้อนการปล่อยที่ AI ตรวจพบ" })} sub={L({ en: "Where carbon is coming from — and what's driving it", th: "คาร์บอนมาจากไหน และอะไรเป็นตัวขับ" })}>
         <div className="grid gap-3 md:grid-cols-3">
           {hotspots.map((h) => (
             <div key={h.title.en} className="rounded-xl border border-white/8 bg-white/[0.02] p-4">
@@ -306,6 +406,96 @@ function AnalyzeTab({ L }: { L: (o: CZ) => string }) {
         </div>
       </Card>
     </div>
+  );
+}
+
+/** Net-Zero what-if — toggle abatement projects and watch the 2030 forecast
+ *  move against the SBTi target. The AI forecast (6,080) assumes the full Act
+ *  pipeline; switching a project off adds its tonnes back. */
+function ScenarioSim({ L }: { L: (o: CZ) => string }) {
+  const [off, setOff] = useState<Set<string>>(new Set());
+  const base2030 = glidepath[glidepath.length - 1].forecast!;
+  const allT = macc.reduce((s, p) => s + p.tco2e, 0);
+  const sel = macc.filter((p) => !off.has(p.id));
+  const selT = sel.reduce((s, p) => s + p.tco2e, 0);
+  const proj = base2030 + (allT - selT);
+  const onTrack = proj <= target2030.tco2e;
+  const capex = sel.reduce((s, p) => s + p.capex, 0);
+  const saving = sel.reduce((s, p) => s + p.saving, 0);
+  const toggle = (id: string) =>
+    setOff((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  return (
+    <Card title={L({ en: "Net-Zero Scenario Simulator", th: "จำลองเส้นทาง Net-Zero" })} sub={L({ en: "Switch projects on/off — watch 2030 move vs the SBTi line", th: "เปิด/ปิดโครงการ แล้วดูปี 2030 ขยับเทียบเป้า SBTi" })}>
+      <div className={cn("rounded-2xl border p-4", onTrack ? "border-emerald-400/25 bg-emerald-400/[0.06]" : "border-rose-400/25 bg-rose-400/[0.06]")}>
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <div>
+            <p className="text-[11px] uppercase tracking-wider text-white/45">{L({ en: "Projected 2030 emissions", th: "คาดการณ์การปล่อยปี 2030" })}</p>
+            <p className={cn("tabular text-3xl font-semibold", onTrack ? "text-emerald-300" : "text-rose-300")}>{proj.toLocaleString()}<span className="ml-1 text-sm font-normal text-white/40">tCO₂e</span></p>
+          </div>
+          <div className="ml-auto text-right">
+            <p className="text-[11px] text-white/45">{L({ en: "SBTi target", th: "เป้า SBTi" })} {target2030.tco2e.toLocaleString()}</p>
+            <span className={cn("mt-1 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium", onTrack ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300" : "border-rose-400/30 bg-rose-400/10 text-rose-300")}>
+              {onTrack
+                ? <>✓ {L({ en: `ahead by ${(target2030.tco2e - proj).toLocaleString()} tCO₂e`, th: `นำหน้าเป้า ${(target2030.tco2e - proj).toLocaleString()} tCO₂e` })}</>
+                : <>✕ {L({ en: `misses by ${(proj - target2030.tco2e).toLocaleString()} tCO₂e`, th: `พลาดเป้า ${(proj - target2030.tco2e).toLocaleString()} tCO₂e` })}</>}
+            </span>
+          </div>
+        </div>
+        <p className="mt-2 text-[11px] text-white/45">
+          {L({ en: `Selected: ${sel.length}/${macc.length} projects · abates ${selT.toLocaleString()} tCO₂e/yr · capex ${baht(capex)} · saves ${baht(saving)}/yr`, th: `เลือกอยู่ ${sel.length}/${macc.length} โครงการ · ลด ${selT.toLocaleString()} tCO₂e/ปี · ลงทุน ${baht(capex)} · ประหยัด ${baht(saving)}/ปี` })}
+        </p>
+      </div>
+      <div className="mt-3.5 grid gap-2 sm:grid-cols-2">
+        {macc.map((p) => {
+          const on = !off.has(p.id);
+          return (
+            <button key={p.id} onClick={() => toggle(p.id)} className={cn("flex items-center gap-2.5 rounded-xl border px-3 py-2 text-left transition", on ? "border-emerald-400/30 bg-emerald-400/[0.07]" : "border-white/10 bg-white/[0.02] opacity-60 hover:opacity-90")}>
+              <span className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-md border", on ? "border-emerald-400/50 bg-emerald-400/20 text-emerald-300" : "border-white/20 text-transparent")}><Check size={12} /></span>
+              <span className="min-w-0 flex-1 truncate text-[12px]">{L(p.name)}</span>
+              <span className="tabular shrink-0 text-[11px] text-white/45">−{p.tco2e}</span>
+            </button>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+/** CBAM exposure — EU-bound carbon priced in ฿, and what the plan saves */
+function CbamCard({ L }: { L: (o: CZ) => string }) {
+  const rows = cbamExposure.items.map((it) => {
+    const p = products.find((x) => x.sku === it.sku)!;
+    const tco2e = Math.round((it.unitsYr * p.kg) / 1000);
+    return { p, unitsYr: it.unitsYr, tco2e, bahtYr: Math.round(tco2e * cbamExposure.etsEur * cbamExposure.fxThb) };
+  });
+  const total = rows.reduce((s, r) => s + r.bahtYr, 0);
+  const saved = Math.round((total * cbamExposure.planReductionPct) / 100);
+  return (
+    <Card title={L({ en: "CBAM Exposure", th: "ความเสี่ยง CBAM" })} sub={L({ en: "What EU-bound carbon costs in certificates", th: "ของที่ส่งเข้า EU ต้องจ่ายค่าใบรับรองเท่าไหร่" })}>
+      <div className="flex items-baseline gap-1.5">
+        <p className="tabular text-3xl font-semibold text-rose-300">{baht(total)}</p>
+        <span className="text-sm text-white/40">/{L({ en: "yr", th: "ปี" })}</span>
+      </div>
+      <p className="text-[11px] text-white/45">{L({ en: `at €${cbamExposure.etsEur}/tCO₂e (EU ETS) · today's product footprint`, th: `ที่ราคา €${cbamExposure.etsEur}/tCO₂e (EU ETS) · จากคาร์บอนต่อชิ้นปัจจุบัน` })}</p>
+      <div className="mt-4 space-y-2">
+        {rows.map((r) => (
+          <div key={r.p.sku} className="rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2.5">
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="text-[12.5px] font-medium">{L(r.p.name)}</p>
+              <p className="tabular text-[13px] font-semibold text-rose-300">{baht(r.bahtYr)}</p>
+            </div>
+            <p className="mt-0.5 text-[10.5px] text-white/40">{r.unitsYr.toLocaleString()} {L({ en: "units/yr", th: "ชิ้น/ปี" })} × {r.p.kg} kg = {r.tco2e.toLocaleString()} tCO₂e</p>
+          </div>
+        ))}
+      </div>
+      <p className="mt-4 rounded-lg border border-emerald-400/20 bg-emerald-400/[0.06] px-3 py-2 text-[12px] leading-relaxed text-emerald-200">
+        {L({ en: `Deliver the Act pipeline → product footprint −${cbamExposure.planReductionPct}% → save ~${baht(saved)}/yr in certificates`, th: `ทำโครงการในแท็บ "ลงมือ" ครบ → คาร์บอนต่อชิ้นลด ${cbamExposure.planReductionPct}% → ประหยัดค่าใบรับรอง ~${baht(saved)}/ปี` })}
+      </p>
+    </Card>
   );
 }
 
@@ -347,7 +537,7 @@ function ActTab({ L, locale }: { L: (o: CZ) => string; locale: string }) {
       </section>
 
       <Card
-        title={L({ en: "Abatement roadmap (MACC)", th: "แผนลดคาร์บอน (MACC)" })}
+        title={L({ en: "Abatement Roadmap (MACC)", th: "แผนลดคาร์บอน (MACC)" })}
         sub={L({ en: "Ranked by ฿ per tonne — turn any project into a Work Order", th: "จัดอันดับตาม ฿ ต่อตัน — กดสร้าง Work Order ได้เลย" })}
       >
         <div className="space-y-2.5">
@@ -427,7 +617,7 @@ function ReportTab({ L, locale }: { L: (o: CZ) => string; locale: string }) {
         <div className="relative flex flex-wrap items-center gap-4">
           <span className="grid h-12 w-12 place-items-center rounded-2xl border" style={{ color: accent, borderColor: `${accent}66`, backgroundColor: `${accent}1f` }}><FileText size={24} /></span>
           <div className="min-w-0 flex-1">
-            <h3 className="flex items-center gap-2 font-semibold">{esg ? L({ en: "Audit-ready ESG & Carbon report", th: "รายงาน ESG & คาร์บอน พร้อมตรวจสอบ" }) : L({ en: "ISO 50001 energy performance report", th: "รายงานสมรรถนะพลังงาน ISO 50001" })} <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-medium" style={{ color: accent, backgroundColor: `${accent}1f` }}><BadgeCheck size={12} /> {esg ? L({ en: "Assured", th: "รับรองแล้ว" }) : L({ en: "Conformity", th: "สอดคล้อง" })}</span></h3>
+            <h3 className="flex items-center gap-2 font-semibold">{esg ? L({ en: "Audit-Ready ESG & Carbon Report", th: "รายงาน ESG & คาร์บอน พร้อมตรวจสอบ" }) : L({ en: "ISO 50001 Energy Performance Report", th: "รายงานสมรรถนะพลังงาน ISO 50001" })} <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-medium" style={{ color: accent, backgroundColor: `${accent}1f` }}><BadgeCheck size={12} /> {esg ? L({ en: "Assured", th: "รับรองแล้ว" }) : L({ en: "Conformity", th: "สอดคล้อง" })}</span></h3>
             <p className="mt-1 max-w-2xl text-sm text-white/60">{esg ? L({ en: "7-page report with basis of reporting, GRI 305 index and an independent limited-assurance statement. Download a real A4 PDF (selectable text) — every figure traces to a source meter.", th: "รายงาน 7 หน้า มีหลักเกณฑ์การจัดทำ ดัชนี GRI 305 และคำรับรองความเชื่อมั่นอย่างจำกัดโดยอิสระ ดาวน์โหลดเป็น PDF A4 จริง (คัดลอกข้อความได้) ทุกตัวเลขอ้างอิงมิเตอร์ต้นทาง" }) : L({ en: "6-page ISO 50001:2018 report: energy review, baseline (EnB), EnPIs, action plans and IPMVP-verified savings. Download a real A4 PDF.", th: "รายงาน ISO 50001:2018 6 หน้า: ทบทวนพลังงาน เส้นฐาน (EnB) EnPI แผนปฏิบัติการ และผลประหยัดตาม IPMVP · ดาวน์โหลดเป็น PDF A4 จริง" })}</p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -442,7 +632,7 @@ function ReportTab({ L, locale }: { L: (o: CZ) => string; locale: string }) {
       </section>
 
       {/* live template preview */}
-      <Card title={esg ? L({ en: "ESG report template preview", th: "ตัวอย่างเทมเพลต ESG" }) : L({ en: "ISO 50001 report template preview", th: "ตัวอย่างเทมเพลต ISO 50001" })} sub={esg ? L({ en: "Cover → summary → 7 sections + assurance · scroll inside", th: "หน้าปก → สรุป → 7 หมวด + คำรับรอง · เลื่อนดูในกรอบ" }) : L({ en: "Cover → summary → energy review · EnB · EnPI · M&V", th: "หน้าปก → สรุป → ทบทวนพลังงาน · EnB · EnPI · M&V" })} right={<span className="chip text-emerald-300"><Eye size={12} /> {L({ en: "Live", th: "เรียลไทม์" })}</span>}>
+      <Card title={esg ? L({ en: "ESG Report Template Preview", th: "ตัวอย่างเทมเพลต ESG" }) : L({ en: "ISO 50001 Report Template Preview", th: "ตัวอย่างเทมเพลต ISO 50001" })} sub={esg ? L({ en: "Cover → summary → 7 sections + assurance · scroll inside", th: "หน้าปก → สรุป → 7 หมวด + คำรับรอง · เลื่อนดูในกรอบ" }) : L({ en: "Cover → summary → energy review · EnB · EnPI · M&V", th: "หน้าปก → สรุป → ทบทวนพลังงาน · EnB · EnPI · M&V" })} right={<span className="chip text-emerald-300"><Eye size={12} /> {L({ en: "Live", th: "เรียลไทม์" })}</span>}>
         <div className="rounded-xl border border-white/10 bg-[#eceff2] p-3">
           <iframe key={kind} title="report preview" srcDoc={reportHtml} className="h-[620px] w-full rounded-lg border-0 bg-white" />
         </div>
@@ -450,7 +640,7 @@ function ReportTab({ L, locale }: { L: (o: CZ) => string; locale: string }) {
 
       {/* CBAM / product carbon footprint (ESG only) */}
       {esg ? (
-        <Card title={L({ en: "Product Carbon Footprint · CBAM-ready", th: "คาร์บอนต่อสินค้า · พร้อม CBAM" })} sub={L({ en: "Per-unit embedded carbon — attach as a certificate to customer POs / EU imports", th: "คาร์บอนฝังตัวต่อหน่วย — แนบเป็นใบรับรองกับออเดอร์ลูกค้า / การนำเข้า EU" })}>
+        <Card title={L({ en: "Product Carbon Footprint", th: "คาร์บอนต่อสินค้า" })} sub={L({ en: "CBAM-Ready · Per-unit embedded carbon — attach as a certificate to customer POs / EU imports", th: "พร้อม CBAM · คาร์บอนฝังตัวต่อหน่วย — แนบเป็นใบรับรองกับออเดอร์ลูกค้า / การนำเข้า EU" })}>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[560px] text-left text-sm">
               <thead>
@@ -739,7 +929,7 @@ ${foot(3)}</div></div>
 <div class="sub">${t("GHG Protocol dual reporting", "รายงานคู่ตาม GHG Protocol")}</div>
 <div class="two"><div>
 <table><tbody>
-<tr><td>${t("Location-based", "อิงค่าเฉลี่·ริด")}</td><td class="num">${scope2Dual.locationBased} tCO₂e</td></tr>
+<tr><td>${t("Location-based", "อิงค่าเฉลี่ยกริด")}</td><td class="num">${scope2Dual.locationBased} tCO₂e</td></tr>
 <tr><td>${t("Market-based", "หลังหักพลังงานสะอาด")}</td><td class="num good">${scope2Dual.marketBased} tCO₂e</td></tr>
 <tr><td>${t("Renewable share", "สัดส่วนพลังงานสะอาด")}</td><td class="num good">${scope2Dual.renewablePct}%</td></tr></tbody></table>
 <div style="margin-top:12px">${mixLegend}</div></div>
@@ -785,7 +975,7 @@ ${foot(6)}</div></div>
 <div class="block"><h2 class="sec"><span class="n">§</span>${t("Standards alignment", "มาต°านที่สอดคล้อง")}</h2>
 <div style="margin-left:36px">${stds}</div></div>
 <div class="block"><h2 class="sec"><span class="n">§</span>${t("Independent limited assurance", "การให้ความเชื่อมั่นอย่างจำกัดโดยอิสระ")}</h2>
-<div class="assure">${t("Based on limited assurance procedures conducted in accordance with ISO 14064-3 and ISAE 3410, nothing has come to our attention that causes us to believe the Scope 1, 2 and 3 GHG figures in this report are not fairly stated, in all material respects. Data is generated from calibrated source meters via SpareX FactoryOS with a complete audit trail — no spreadsheets, no manual estimates.", "จากขั้นตอนการให้ความเชื่อมั่นอย่างจำกัดตาม ISO 14064-3 และ ISAE 3410 ไม่พบสิ่งใดที่ทำให้เชื่อว่าตัวเลข GHG Scope 1, 2 และ 3 ในรายงานนี้ไม่ถูกต้องในสาระสำคัญ ข้อมูลสร้างจากมิเตอร์ต้นทางที่สอบเทียบแล้วผ่าน SpareX FactoryOS พร้อมร่องรอ·ารตรวจสอบครบถ้วน — ไม่ใช้สเปรดชีต ไม่ใช้การประมาณด้วยมือ")}</div>
+<div class="assure">${t("Based on limited assurance procedures conducted in accordance with ISO 14064-3 and ISAE 3410, nothing has come to our attention that causes us to believe the Scope 1, 2 and 3 GHG figures in this report are not fairly stated, in all material respects. Data is generated from calibrated source meters via SpareX FactoryOS with a complete audit trail — no spreadsheets, no manual estimates.", "จากขั้นตอนการให้ความเชื่อมั่นอย่างจำกัดตาม ISO 14064-3 และ ISAE 3410 ไม่พบสิ่งใดที่ทำให้เชื่อว่าตัวเลข GHG Scope 1, 2 และ 3 ในรายงานนี้ไม่ถูกต้องในสาระสำคัญ ข้อมูลสร้างจากมิเตอร์ต้นทางที่สอบเทียบแล้วผ่าน SpareX FactoryOS พร้อมร่องรอยการตรวจสอบครบถ้วน — ไม่ใช้สเปรดชีต ไม่ใช้การประมาณด้วยมือ")}</div>
 <div class="sign"><div>${t("Prepared by · SpareX FactoryOS", "จัดทำโดย · SpareX FactoryOS")}</div><div>${t("Approved by · Sustainability Lead", "อนุมัติโดย · ผู้จัดการความยั่งยืน")}</div><div>${t("Independent verifier · [Assurance provider]", "ผู้ตรวจอิสระ · [หน่วยให้ความเชื่อมั่น]")}</div></div></div>
 ${foot(7)}</div></div>
 
@@ -900,7 +1090,7 @@ ${foot(2)}</div></div>
 <div style="margin-top:10px">${mixLegend}</div></div>
 <div style="text-align:center">${mixSvg}<div style="font-size:10.5px;color:var(--mut);margin-top:4px">${t("Energy mix", "สัดส่วนพลังงาน")}</div></div></div></div>
 <div class="block"><h2 class="sec"><span class="n">6.3</span>${t("Significant Energy Uses (SEU)", "การใช้พลังงานที่มีนัยสำคัญ (SEU)")}</h2>
-<div class="sub">${t("Uses accounting for the majority of consumption & improvement opportunity", "รา·ารที่ใช้พลังงานส่วนใหญ่และมีโอกาสปรับปรุง")}</div>
+<div class="sub">${t("Uses accounting for the majority of consumption & improvement opportunity", "รายการที่ใช้พลังงานส่วนใหญ่และมีโอกาสปรับปรุง")}</div>
 <table><thead><tr><th>${t("Significant energy use", "การใช้พลังงานที่มีนัยสำคัญ")}</th><th style="text-align:right">${t("Share", "สัดส่วน")}</th></tr></thead><tbody>${seuRows}</tbody></table></div>
 ${foot(3)}</div></div>
 
@@ -929,7 +1119,7 @@ ${foot(5)}</div></div>
 <ul style="margin:0;padding-left:18px;color:#334155;font-size:12px;line-height:2">${mrRows}</ul></div>
 <div class="block"><h2 class="sec"><span class="n">§</span>${t("Conformity &amp; continual improvement", "ความสอดคล้อง &amp; การปรับปรุงต่อเนื่อง")}</h2>
 <div style="margin-left:36px">${stds}</div>
-<div class="assure" style="margin-top:14px">${t("This report summarizes the energy performance of the ISO 50001:2018 energy management system at SpareX Bangkok Plant 1. Energy data is collected continuously from calibrated sub-meters; the energy baseline and EnPIs follow ISO 50006, and savings are verified per IPMVP / ISO 50015. The Plan-Do-Check-Act cycle drives continual improvement of energy performance.", "รายงานนี้สรุปสมรรถนะพลังงานของระบบจัดการพลังงาน ISO 50001:2018 ที่โรงงาน SpareX กรุงเทพ 1 ข้อมูลพลังงานเก็บต่อเนื่องจากมิเตอร์ย่อ·ี่สอบเทียบแล้ว เส้นฐานและ EnPI เป็นไปตาม ISO 50006 และผลประหยัดตรวจวัดตาม IPMVP / ISO 50015 วงจร Plan-Do-Check-Act ขับเคลื่อนการปรับปรุงสมรรถนะพลังงานอย่างต่อเนื่อง")}</div>
+<div class="assure" style="margin-top:14px">${t("This report summarizes the energy performance of the ISO 50001:2018 energy management system at SpareX Bangkok Plant 1. Energy data is collected continuously from calibrated sub-meters; the energy baseline and EnPIs follow ISO 50006, and savings are verified per IPMVP / ISO 50015. The Plan-Do-Check-Act cycle drives continual improvement of energy performance.", "รายงานนี้สรุปสมรรถนะพลังงานของระบบจัดการพลังงาน ISO 50001:2018 ที่โรงงาน SpareX กรุงเทพ 1 ข้อมูลพลังงานเก็บต่อเนื่องจากมิเตอร์ย่อยที่สอบเทียบแล้ว เส้นฐานและ EnPI เป็นไปตาม ISO 50006 และผลประหยัดตรวจวัดตาม IPMVP / ISO 50015 วงจร Plan-Do-Check-Act ขับเคลื่อนการปรับปรุงสมรรถนะพลังงานอย่างต่อเนื่อง")}</div>
 <div class="sign"><div>${t("Energy Manager · SpareX FactoryOS", "ผู้จัดการพลังงาน · SpareX FactoryOS")}</div><div>${t("Top Management approval", "อนุมัติโดยผู้บริหารสูงสุด")}</div></div></div>
 ${foot(6)}</div></div>
 

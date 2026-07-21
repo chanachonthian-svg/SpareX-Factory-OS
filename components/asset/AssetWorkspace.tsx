@@ -4,14 +4,17 @@ import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
-  Activity, LayoutDashboard, ListTree, IdCard, ShieldCheck, Wallet, Sparkles,
-  AlertTriangle, ArrowRight, ArrowUpRight, ChevronRight, Wrench, Package, ExternalLink,
-  UserCog, PieChart, HeartPulse, Boxes, Clock, TrendingUp, Building2, Recycle, Check,
+  ShieldCheck, Sparkles,
+  AlertTriangle, ArrowRight, ArrowUpRight, ChevronRight, Wrench, ExternalLink,
+  UserCog, PieChart, HeartPulse, TrendingUp, Building2, Recycle, Check,
+  FileText, Download,
 } from "lucide-react";
 import { assets, assetById, predictedFailures, type Asset } from "@/lib/factory";
 import { openCopilot, cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
 import { KpiCard } from "@/components/os/KpiCard";
+import { WorkflowBar } from "@/components/os/WorkflowNav";
+import { AskCopilot } from "@/components/os/AskCopilot";
 import { series } from "@/lib/telemetry";
 import { createWorkOrder, useWorkOrders, WO_STATUS, WO_FLOW, type WorkOrder } from "@/lib/workorders";
 import {
@@ -35,7 +38,7 @@ const actionFor = (a: Asset): LZ => ({ en: `Service ${a.name} — ${topFmea(a).m
 function Panel({ title, sub, extra, children, className }: { title?: string; sub?: string; extra?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
     <div className={cn("panel p-5", className)}>
-      {title ? <div className="mb-3 flex items-start justify-between gap-3"><div><h3 className="font-semibold">{title}</h3>{sub ? <p className="mt-0.5 text-xs text-white/45">{sub}</p> : null}</div>{extra}</div> : null}
+      {title ? <div className="mb-3 flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="font-semibold leading-tight text-white">{title}</h3>{sub ? <p className="mt-0.5 text-[11px] leading-tight text-white/40">{sub}</p> : null}</div>{extra}</div> : null}
       {children}
     </div>
   );
@@ -210,11 +213,11 @@ function OverviewView({ role, onPick, L }: { role: Role; onPick: (id: string) =>
       )}
 
       <section className="grid gap-6 lg:grid-cols-[1.25fr_1fr]">
-        <Panel title={L({ en: "Fleet map · criticality × condition", th: "แผนที่ฟลีต · ความวิกฤต × สภาพ" })} sub={L({ en: "bubble = asset · size = ฿ at risk · colour = condition · click for passport", th: "แต่ละวง = เครื่อง · ขนาด = ฿ ที่เสี่ยง · สี = สภาพ · คลิกดู passport" })}>
+        <Panel title={L({ en: "Fleet Map", th: "แผนที่ฟลีต" })} sub={L({ en: "Criticality × Condition · bubble = asset · size = ฿ at risk · colour = condition · click for passport", th: "ความวิกฤต × สภาพ · แต่ละวง = เครื่อง · ขนาด = ฿ ที่เสี่ยง · สี = สภาพ · คลิกดู passport" })}>
           <FleetMatrix onPick={onPick} L={L} />
           <div className="mt-2 flex flex-wrap gap-3">{(["healthy", "warning", "critical"] as Asset["status"][]).map((s) => <span key={s} className="flex items-center gap-1.5 text-[11px] text-white/50"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: STATUS_HEX[s] }} />{L(s === "healthy" ? { en: "healthy", th: "ปกติ" } : s === "warning" ? { en: "watch", th: "เฝ้าระวัง" } : { en: "critical", th: "วิกฤต" })}</span>)}</div>
         </Panel>
-        <Panel title={L({ en: "Act this week", th: "ต้องจัดการสัปดาห์นี้" })} sub={L({ en: "bad actors — highest ฿ at risk first", th: "ตัวปัญหา — เรียงตาม ฿ ที่เสี่ยงสูงสุด" })}>
+        <Panel title={L({ en: "Act This Week", th: "ต้องจัดการสัปดาห์นี้" })} sub={L({ en: "bad actors — highest ฿ at risk first", th: "ตัวปัญหา — เรียงตาม ฿ ที่เสี่ยงสูงสุด" })}>
           <ul className="space-y-1.5">
             {actors.map((a) => (
               <li key={a.id} onClick={() => onPick(a.id)} className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-white/6 bg-white/[0.02] px-3 py-2 transition hover:bg-white/[0.04]">
@@ -230,9 +233,9 @@ function OverviewView({ role, onPick, L }: { role: Role; onPick: (id: string) =>
 
       <Panel className="relative overflow-hidden">
         <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-brand-500/12 blur-3xl" />
-        <div className="flex items-center gap-2"><span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-brand-400 to-accent-500 text-ink-950"><Sparkles size={16} /></span><h3 className="font-semibold">{role === "engineer" ? L({ en: "AI reliability summary", th: "สรุปความน่าเชื่อถือโดย AI" }) : L({ en: "AI portfolio summary", th: "สรุปพอร์ตสินทรัพย์โดย AI" })}</h3></div>
+        <div className="flex items-center gap-2"><span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-brand-400 to-accent-500 text-ink-950"><Sparkles size={16} /></span><h3 className="font-semibold">{role === "engineer" ? L({ en: "AI Reliability Summary", th: "สรุปความน่าเชื่อถือโดย AI" }) : L({ en: "AI Portfolio Summary", th: "สรุปพอร์ตสินทรัพย์โดย AI" })}</h3></div>
         {role === "engineer" ? (
-          <p className="mt-3 text-sm leading-relaxed text-white/70"><span className="text-rose-300">Chiller B</span> {L({ en: "leads risk — condenser fouling, ~3d RUL. ", th: "เสี่ยงสูงสุด — คอนเดนเซอร์อุดตัน, RUL ~3 วัน " })}<span className="text-amber-300">{p.underMaintained} {L({ en: "assets are under-maintained for their criticality", th: "เครื่องได้รับการดูแลน้อ·ว่าความวิกฤต" })}</span>{L({ en: " (e.g. Air Compressor 10). Fleet health ", th: " (เช่น Air Compressor 10) สุขภาพฟลีต " })}<span style={{ color: healthVar(p.avgHealth) }}>{p.avgHealth}/100</span>.</p>
+          <p className="mt-3 text-sm leading-relaxed text-white/70"><span className="text-rose-300">Chiller B</span> {L({ en: "leads risk — condenser fouling, ~3d RUL. ", th: "เสี่ยงสูงสุด — คอนเดนเซอร์อุดตัน, RUL ~3 วัน " })}<span className="text-amber-300">{p.underMaintained} {L({ en: "assets are under-maintained for their criticality", th: "เครื่องได้รับการดูแลน้อยกว่าความวิกฤต" })}</span>{L({ en: " (e.g. Air Compressor 10). Fleet health ", th: " (เช่น Air Compressor 10) สุขภาพฟลีต " })}<span style={{ color: healthVar(p.avgHealth) }}>{p.avgHealth}/100</span>.</p>
         ) : (
           <p className="mt-3 text-sm leading-relaxed text-white/70">{L({ en: "Total exposure ", th: "ความเสี่ยงรวม " })}<span className="font-semibold text-rose-300">{thbCompact(p.flaggedRiskTHB)}</span>{L({ en: " across ", th: " จาก " })}{p.atRisk}{L({ en: " flagged assets. Maintenance spend is ", th: " เครื่องที่เฝ้า ค่าซ่อมอยู่ที่ " })}<span className="text-emerald-300">{spend}%</span>{L({ en: " of budget. ", th: " ของงบ " })}<span className="text-amber-300">{replaceCandidates().length} {L({ en: "assets warrant replacement over repeat repair", th: "เครื่องควรเปลี่ยนแทนซ่อมซ้ำ" })}</span>.</p>
         )}
@@ -311,12 +314,27 @@ function PassportView({ selId, setSel, role, wos, onRaise, L }: { selId: string;
   );
 }
 
+/* ══════════════════════════ strategy-fit gaps (shared: Analysis & Action steps) ══════════════════════════ */
+function StrategyGapsPanel({ onPick, L }: { onPick: (id: string) => void; L: Tr }) {
+  const under = assets.filter((a) => strategyFit(a) === "under");
+  return (
+    <Panel title={L({ en: "Strategy-Fit Gaps", th: "ช่องว่างความเหมาะสมกลยุทธ์" })} sub={L({ en: "critical assets maintained too lightly — raise the strategy", th: "เครื่องวิกฤตที่ดูแลเบาไป — ควรยกระดับกลยุทธ์" })} extra={<span className="chip text-rose-200">{under.length}</span>}>
+      <ul className="space-y-1.5">{under.length ? under.map((a) => (
+        <li key={a.id} onClick={() => onPick(a.id)} className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-white/6 bg-white/[0.02] px-3 py-2 transition hover:bg-white/[0.04]">
+          <CritBadge c={critClass(a)} L={L} />
+          <div className="min-w-0 flex-1"><p className="truncate text-[13px] font-medium text-white/85">{a.name}</p><p className="truncate text-[10px] text-white/40">{L(STRATEGY_META[strategyOf(a)].label)} → <span className="text-amber-300">{L(STRATEGY_META[recommendedStrategy(a)].label)}</span></p></div>
+          <ChevronRight size={14} className="shrink-0 text-white/30" />
+        </li>
+      )) : <p className="py-6 text-center text-sm text-white/40">{L({ en: "Every asset's strategy fits its criticality.", th: "ทุกเครื่องมีกลยุทธ์เหมาะกับความวิกฤตแล้ว" })}</p>}</ul>
+    </Panel>
+  );
+}
+
 /* ══════════════════════════ tab · RELIABILITY & FMEA ══════════════════════════ */
 function ReliabilityView({ onPick, L }: { onPick: (id: string) => void; L: Tr }) {
   const p = portfolio;
   const fmeaRows = assets.flatMap((a) => fmeaFor(a).map((r) => ({ a, r }))).sort((x, y) => rpn(y.r) - rpn(x.r)).slice(0, 8);
   const stratMax = Math.max(...Object.values(p.strat));
-  const under = assets.filter((a) => strategyFit(a) === "under");
   return (
     <div className="space-y-6">
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -325,7 +343,7 @@ function ReliabilityView({ onPick, L }: { onPick: (id: string) => void; L: Tr })
         <Panel><p className="text-[11px] uppercase tracking-wider text-white/45">{L({ en: "Availability", th: "ความพร้อมใช้งาน" })}</p><p className="mt-1 tabular text-3xl font-semibold text-emerald-300">{p.availabilityPct}<span className="text-sm font-normal text-white/40">%</span></p><p className="mt-1 text-[12px] text-white/45">{L({ en: "fleet uptime", th: "เวลาพร้อมใช้ของฟลีต" })}</p></Panel>
       </section>
 
-      <Panel title={L({ en: "FMEA · highest-RPN failure modes", th: "FMEA · โหมดเสี·ี่ RPN สูงสุด" })} sub={L({ en: "risk priority number = severity × occurrence × detection", th: "RPN = ความรุนแรง × โอกาสเกิด × ความยากตรวจจับ" })}>
+      <Panel title="FMEA" sub={L({ en: "Highest-RPN Failure Modes · risk priority number = severity × occurrence × detection", th: "โหมดเสียที่ RPN สูงสุด · RPN = ความรุนแรง × โอกาสเกิด × ความยากตรวจจับ" })}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="text-left text-[11px] uppercase tracking-wider text-white/40">
@@ -349,22 +367,32 @@ function ReliabilityView({ onPick, L }: { onPick: (id: string) => void; L: Tr })
       </Panel>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        <Panel title={L({ en: "Maintenance strategy mix", th: "สัดส่วนกลยุทธ์ดูแล" })} sub={L({ en: "how the fleet is currently maintained", th: "ปัจจุบันฟลีตถูกดูแลด้วยวิธีใด" })}>
+        <Panel title={L({ en: "Maintenance Strategy Mix", th: "สัดส่วนกลยุทธ์ดูแล" })} sub={L({ en: "how the fleet is currently maintained", th: "ปัจจุบันฟลีตถูกดูแลด้วยวิธีใด" })}>
           <div className="space-y-2.5">{(Object.keys(p.strat) as (keyof typeof p.strat)[]).filter((k) => p.strat[k] > 0).map((k) => (
             <div key={k} className="flex items-center gap-3"><span className="w-32 shrink-0 text-[12px] text-white/70">{L(STRATEGY_META[k].label)}</span><div className="h-3 flex-1 overflow-hidden rounded-full bg-white/8"><div className="h-full rounded-full bg-brand-400/70" style={{ width: `${(p.strat[k] / stratMax) * 100}%` }} /></div><span className="w-6 shrink-0 text-right tabular text-[12px] font-semibold text-white/75">{p.strat[k]}</span></div>
           ))}</div>
         </Panel>
-        <Panel title={L({ en: "Strategy-fit gaps", th: "ช่องว่างความเหมาะสมกลยุทธ์" })} sub={L({ en: "critical assets maintained too lightly — raise the strategy", th: "เครื่องวิกฤตที่ดูแลเบาไป — ควร·ระดับกลยุทธ์" })} extra={<span className="chip text-rose-200">{under.length}</span>}>
-          <ul className="space-y-1.5">{under.length ? under.map((a) => (
-            <li key={a.id} onClick={() => onPick(a.id)} className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-white/6 bg-white/[0.02] px-3 py-2 transition hover:bg-white/[0.04]">
-              <CritBadge c={critClass(a)} L={L} />
-              <div className="min-w-0 flex-1"><p className="truncate text-[13px] font-medium text-white/85">{a.name}</p><p className="truncate text-[10px] text-white/40">{L(STRATEGY_META[strategyOf(a)].label)} → <span className="text-amber-300">{L(STRATEGY_META[recommendedStrategy(a)].label)}</span></p></div>
-              <ChevronRight size={14} className="shrink-0 text-white/30" />
-            </li>
-          )) : <p className="py-6 text-center text-sm text-white/40">{L({ en: "Every asset's strategy fits its criticality.", th: "ทุกเครื่องมีกลยุทธ์เหมาะกับความวิกฤตแล้ว" })}</p>}</ul>
-        </Panel>
+        <StrategyGapsPanel onPick={onPick} L={L} />
       </section>
     </div>
+  );
+}
+
+/* ══════════════════════════ ฿ at risk by criticality (shared: Insight & Report steps) ══════════════════════════ */
+function RiskByClassPanel({ L }: { L: Tr }) {
+  const p = portfolio;
+  const riskByClass = (["A", "B", "C", "D"] as CritClass[]).map((c) => ({ c, thb: assets.filter((a) => critClass(a) === c).reduce((s, a) => s + riskTHB(a), 0) }));
+  const riskMax = Math.max(...riskByClass.map((r) => r.thb), 1);
+  return (
+    <Panel title={L({ en: "฿ at Risk by Criticality", th: "฿ ที่เสี่ยงตามความวิกฤต" })} sub={L({ en: "where consequence concentrates", th: "ความเสี่ยงกระจุกอยู่ที่ระดับใด" })}>
+      <div className="space-y-2.5">{riskByClass.map(({ c, thb }) => (
+        <div key={c} className="flex items-center gap-3"><span className="w-28 shrink-0 text-[12px]" style={{ color: CRIT_META[c].text }}>{L(CRIT_META[c].short)}</span><div className="h-3 flex-1 overflow-hidden rounded-full bg-white/8"><div className="h-full rounded-full" style={{ width: `${(thb / riskMax) * 100}%`, backgroundColor: CRIT_META[c].hex }} /></div><span className="w-14 shrink-0 text-right tabular text-[12px] font-semibold text-white/75">{thbCompact(thb)}</span></div>
+      ))}</div>
+      <div className="mt-4 border-t border-white/8 pt-3">
+        <div className="mb-1 flex items-center justify-between text-[12px]"><span className="text-white/55">{L({ en: "Reactive vs planned", th: "ฉุกเฉิน vs วางแผน" })}</span><span className="text-white/60">{p.reactivePct}% · {p.plannedPct}%</span></div>
+        <div className="flex h-3 overflow-hidden rounded-full bg-white/8"><div className="h-full bg-rose-400/70" style={{ width: `${p.reactivePct}%` }} /><div className="h-full bg-emerald-400/70" style={{ width: `${p.plannedPct}%` }} /></div>
+      </div>
+    </Panel>
   );
 }
 
@@ -372,8 +400,6 @@ function ReliabilityView({ onPick, L }: { onPick: (id: string) => void; L: Tr })
 function EconomicsView({ onPick, L }: { onPick: (id: string) => void; L: Tr }) {
   const p = portfolio;
   const spendPct = Math.round((p.maintSpentYtd / p.maintBudgetYr) * 100);
-  const riskByClass = (["A", "B", "C", "D"] as CritClass[]).map((c) => ({ c, thb: assets.filter((a) => critClass(a) === c).reduce((s, a) => s + riskTHB(a), 0) }));
-  const riskMax = Math.max(...riskByClass.map((r) => r.thb), 1);
   const priority = investmentPriority().slice(0, 6);
   const replace = replaceCandidates();
   return (
@@ -386,16 +412,8 @@ function EconomicsView({ onPick, L }: { onPick: (id: string) => void; L: Tr }) {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        <Panel title={L({ en: "฿ at risk by criticality", th: "฿ ที่เสี่ยงตามความวิกฤต" })} sub={L({ en: "where consequence concentrates", th: "ความเสี่ยงกระจุกอยู่ที่ระดับใด" })}>
-          <div className="space-y-2.5">{riskByClass.map(({ c, thb }) => (
-            <div key={c} className="flex items-center gap-3"><span className="w-28 shrink-0 text-[12px]" style={{ color: CRIT_META[c].text }}>{L(CRIT_META[c].short)}</span><div className="h-3 flex-1 overflow-hidden rounded-full bg-white/8"><div className="h-full rounded-full" style={{ width: `${(thb / riskMax) * 100}%`, backgroundColor: CRIT_META[c].hex }} /></div><span className="w-14 shrink-0 text-right tabular text-[12px] font-semibold text-white/75">{thbCompact(thb)}</span></div>
-          ))}</div>
-          <div className="mt-4 border-t border-white/8 pt-3">
-            <div className="mb-1 flex items-center justify-between text-[12px]"><span className="text-white/55">{L({ en: "Reactive vs planned", th: "ฉุกเฉิน vs วางแผน" })}</span><span className="text-white/60">{p.reactivePct}% · {p.plannedPct}%</span></div>
-            <div className="flex h-3 overflow-hidden rounded-full bg-white/8"><div className="h-full bg-rose-400/70" style={{ width: `${p.reactivePct}%` }} /><div className="h-full bg-emerald-400/70" style={{ width: `${p.plannedPct}%` }} /></div>
-          </div>
-        </Panel>
-        <Panel title={L({ en: "Maintenance budget", th: "งบซ่อมบำรุง" })} sub={L({ en: "spend vs annual budget", th: "ที่ใช้ไป vs งบทั้งปี" })}>
+        <RiskByClassPanel L={L} />
+        <Panel title={L({ en: "Maintenance Budget", th: "งบซ่อมบำรุง" })} sub={L({ en: "spend vs annual budget", th: "ที่ใช้ไป vs งบทั้งปี" })}>
           <div className="flex items-end justify-between"><p className="tabular text-3xl font-semibold text-white">{thbCompact(p.maintSpentYtd)}</p><p className="text-[12px] text-white/45">{L({ en: "of", th: "จาก" })} {thbCompact(p.maintBudgetYr)}</p></div>
           <div className="mt-3 h-3 overflow-hidden rounded-full bg-white/8"><div className="h-full rounded-full bg-gradient-to-r from-brand-400 to-accent-500" style={{ width: `${spendPct}%` }} /></div>
           <p className="mt-2 text-[12px] text-white/50">{spendPct}% {L({ en: "used · pace on track for full year", th: "ถูกใช้ · อัตราการใช้อยู่ในแผนทั้งปี" })}</p>
@@ -403,7 +421,7 @@ function EconomicsView({ onPick, L }: { onPick: (id: string) => void; L: Tr }) {
         </Panel>
       </section>
 
-      <Panel title={L({ en: "Where capital works hardest", th: "ลงทุนตรงไหนคุ้มสุด" })} sub={L({ en: "฿ risk removed per ฿ spent — fund top-down", th: "฿ ความเสี่ยงที่ลดได้ต่อ ฿ ที่จ่าย — จัดงบจากบนลงล่าง" })}>
+      <Panel title={L({ en: "Where Capital Works Hardest", th: "ลงทุนตรงไหนคุ้มสุด" })} sub={L({ en: "฿ risk removed per ฿ spent — fund top-down", th: "฿ ความเสี่ยงที่ลดได้ต่อ ฿ ที่จ่าย — จัดงบจากบนลงล่าง" })}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="text-left text-[11px] uppercase tracking-wider text-white/40">
@@ -424,7 +442,7 @@ function EconomicsView({ onPick, L }: { onPick: (id: string) => void; L: Tr }) {
         </div>
       </Panel>
 
-      <Panel title={L({ en: "Repair-vs-replace · end-of-life assets", th: "ซ่อม vs เปลี่ยน · เครื่องหมดอายุ" })} sub={L({ en: "past economic life & still failing — replace to stop the bleed", th: "เกินอายุคุ้มค่า & ยังเสียซ้ำ — เปลี่ยนเพื่อหยุดต้นทุนบานปลาย" })} extra={<span className="chip text-rose-200">{replace.length}</span>}>
+      <Panel title={L({ en: "Repair-vs-Replace", th: "ซ่อม vs เปลี่ยน" })} sub={L({ en: "End-of-Life Assets · past economic life & still failing — replace to stop the bleed", th: "เครื่องหมดอายุ · เกินอายุคุ้มค่า & ยังเสียซ้ำ — เปลี่ยนเพื่อหยุดต้นทุนบานปลาย" })} extra={<span className="chip text-rose-200">{replace.length}</span>}>
         {replace.length ? <div className="grid gap-2.5 sm:grid-cols-2">{replace.map((a) => { const rr = repairVsReplace(a); return (
           <div key={a.id} onClick={() => onPick(a.id)} className="cursor-pointer rounded-xl border border-white/8 bg-white/[0.02] p-3 transition hover:bg-white/[0.04]">
             <div className="flex items-center gap-2"><CritBadge c={critClass(a)} L={L} /><p className="min-w-0 flex-1 truncate text-[13px] font-medium text-white/85">{a.name}</p><span className="shrink-0 rounded-md bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold text-rose-300">{L({ en: "replace", th: "เปลี่ยน" })}</span></div>
@@ -437,57 +455,114 @@ function EconomicsView({ onPick, L }: { onPick: (id: string) => void; L: Tr }) {
   );
 }
 
-/* ══════════════════════════ workspace ══════════════════════════ */
-type TabId = "overview" | "registry" | "passport" | "reliability" | "economics";
+/* ══════════════════════════ step 04 · AI RECOMMENDATION & ACTION ══════════════════════════ */
+function ActionView({ onPick, wos, onRaise, L }: { onPick: (id: string) => void; wos: WorkOrder[]; onRaise: (a: Asset) => void; L: Tr }) {
+  const flagged = assets.filter((a) => a.rulDays != null).sort((x, y) => riskTHB(y) - riskTHB(x));
+  const totalRisk = flagged.reduce((s, a) => s + riskTHB(a), 0);
+  return (
+    <div className="space-y-6">
+      <Panel
+        title={L({ en: "Prescriptive Action Queue", th: "คิวงานที่ AI แนะนำ" })}
+        sub={L({ en: "flagged assets ranked by ฿ at risk — raise a work order to act", th: "เครื่องที่ AI เฝ้าอยู่ เรียงตาม ฿ ที่เสี่ยง — ออก Work Order เพื่อลงมือ" })}
+        extra={<span className="chip text-rose-200">{L({ en: "at risk", th: "ที่เสี่ยง" })} {thbCompact(totalRisk)}</span>}
+      >
+        <div className="space-y-2.5">
+          {flagged.map((a, i) => {
+            const raised = wos.find((w) => w.findingId === `asset-${a.id}`);
+            return (
+              <div key={a.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-white/8 bg-white/[0.02] p-3">
+                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white/[0.06] text-[12px] font-semibold text-white/70">{i + 1}</span>
+                <div className="min-w-[200px] flex-1">
+                  <button onClick={() => onPick(a.id)} className="flex items-center gap-2 text-left">
+                    <span className="text-[13px] font-medium text-white/90 transition hover:text-white">{a.name}</span>
+                    <CritBadge c={critClass(a)} L={L} />
+                  </button>
+                  <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-white/50"><Wrench size={11} className="shrink-0 text-brand-300" /> {L(actionFor(a))} · ~{a.rulDays}d RUL</p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="tabular text-[13px] font-semibold text-rose-300">{thbCompact(riskTHB(a))}</p>
+                  <p className="text-[9.5px] uppercase tracking-wide text-white/35">{L({ en: "at risk", th: "ที่เสี่ยง" })}</p>
+                </div>
+                {raised ? <WoStatus wo={raised} L={L} /> : (
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="text-right text-[11px] text-white/45">{L({ en: "prevents", th: "กันเสียหาย" })} <span className="font-semibold text-emerald-300">{thbCompact(riskTHB(a) - repairTHB(a))}</span></span>
+                    <button onClick={() => onRaise(a)} className="btn-glow whitespace-nowrap px-3 py-1.5 text-[12px]">{L({ en: "Create work order", th: "ออก Work Order" })} <ArrowRight size={13} /></button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </Panel>
+      <StrategyGapsPanel onPick={onPick} L={L} />
+    </div>
+  );
+}
+
+/* ══════════════════════════ workspace · 5-step FactoryOS workflow ══════════════════════════ */
 
 export function AssetWorkspace() {
   const { locale } = useI18n();
   const L: Tr = (o) => (locale === "th" ? o.th : o.en);
-  const [tab, setTab] = useState<TabId>("overview");
+  const [step, setStep] = useState(0);
   const [role, setRole] = useState<Role>("engineer");
   const [selId, setSelId] = useState<string>("chiller-09");
   const wos = useWorkOrders();
 
-  const openPassport = (id: string) => { setSelId(id); setTab("passport"); };
+  const openPassport = (id: string) => { setSelId(id); setStep(2); };
   const raiseWO = (a: Asset) => {
     createWorkOrder({ id: `asset-${a.id}`, code: `AIQ-${a.id.toUpperCase()}`, title: actionFor(a), asset: { en: a.name, th: a.name }, severity: a.status === "critical" ? "critical" : "warning", capex: repairTHB(a), annualSaving: riskTHB(a) - repairTHB(a), partsCount: spareFor(a).inStock ? 1 : 1 }, "asset");
   };
 
-  const TABS: { id: TabId; icon: typeof Activity; label: LZ }[] = [
-    { id: "overview", icon: LayoutDashboard, label: { en: "Overview", th: "ภาพรวม" } },
-    { id: "registry", icon: ListTree, label: { en: "Registry", th: "ทะเบียนสินทรัพย์" } },
-    { id: "passport", icon: IdCard, label: { en: "Asset passport", th: "โปรไฟล์สินทรัพย์" } },
-    { id: "reliability", icon: ShieldCheck, label: { en: "Reliability & FMEA", th: "ความน่าเชื่อถือ & FMEA" } },
-    { id: "economics", icon: Wallet, label: { en: "Economics", th: "เศรษฐศาสตร์สินทรัพย์" } },
-  ];
-  const showRole = tab === "overview" || tab === "passport";
+  const showRole = step === 0 || step === 2;
 
   return (
     <main className="p-5 lg:p-8">
-      <div className="mb-5 flex flex-wrap items-center gap-3 border-b border-white/10">
-        <div className="flex flex-1 gap-0.5 overflow-x-auto scrollbar-hide">
-          {TABS.map((it) => { const on = tab === it.id; return (
-            <button key={it.id} onClick={() => setTab(it.id)} className={cn("relative flex shrink-0 items-center gap-2 px-3.5 py-2.5 text-sm font-medium transition", on ? "text-white" : "text-white/50 hover:text-white/80")}>
-              <it.icon size={15} className={on ? "text-brand-300" : "text-white/40"} /><span className="whitespace-nowrap">{L(it.label)}</span>
-              {on ? <motion.span layoutId="asset-tab-underline" className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-brand-400" transition={{ type: "spring", stiffness: 500, damping: 38 }} /> : null}
-            </button>
-          ); })}
-        </div>
+      <div className="mb-5 space-y-3">
+        <WorkflowBar step={step} setStep={setStep} L={L} />
         {showRole ? (
-          <div className="mb-1 flex items-center gap-0.5 rounded-lg border border-white/10 bg-white/[0.02] p-0.5">
-            {([["engineer", UserCog, { en: "Engineer", th: "วิศวกร" }], ["executive", PieChart, { en: "Executive", th: "ผู้บริหาร" }]] as [Role, typeof UserCog, LZ][]).map(([r, Icon, lab]) => (
-              <button key={r} onClick={() => setRole(r)} className={cn("flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1 text-[12px] font-medium transition", role === r ? "bg-white/10 text-white/90" : "text-white/45 hover:text-white/70")}><Icon size={13} /> {L(lab)}</button>
-            ))}
+          <div className="flex items-center justify-end gap-2">
+            <span className="text-[11px] uppercase tracking-wider text-white/40">{L({ en: "View as", th: "มุมมอง" })}</span>
+            <div className="flex items-center gap-0.5 rounded-lg border border-white/10 bg-white/[0.02] p-0.5">
+              {([["engineer", UserCog, { en: "Engineer", th: "วิศวกร" }], ["executive", PieChart, { en: "Executive", th: "ผู้บริหาร" }]] as [Role, typeof UserCog, LZ][]).map(([r, Icon, lab]) => (
+                <button key={r} onClick={() => setRole(r)} className={cn("flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1 text-[12px] font-medium transition", role === r ? "bg-white/10 text-white/90" : "text-white/45 hover:text-white/70")}><Icon size={13} /> {L(lab)}</button>
+              ))}
+            </div>
           </div>
         ) : null}
       </div>
 
-      <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        {tab === "overview" ? <OverviewView role={role} onPick={openPassport} L={L} /> : null}
-        {tab === "registry" ? <RegistryView onPick={openPassport} wos={wos} L={L} /> : null}
-        {tab === "passport" ? <PassportView selId={selId} setSel={setSelId} role={role} wos={wos} onRaise={raiseWO} L={L} /> : null}
-        {tab === "reliability" ? <ReliabilityView onPick={openPassport} L={L} /> : null}
-        {tab === "economics" ? <EconomicsView onPick={openPassport} L={L} /> : null}
+      <motion.div key={step} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+        {step === 0 ? <OverviewView role={role} onPick={openPassport} L={L} /> : null}
+        {step === 1 ? (
+          <div className="space-y-6">
+            <RiskByClassPanel L={L} />
+            <RegistryView onPick={openPassport} wos={wos} L={L} />
+          </div>
+        ) : null}
+        {step === 2 ? (
+          <div className="space-y-6">
+            <PassportView selId={selId} setSel={setSelId} role={role} wos={wos} onRaise={raiseWO} L={L} />
+            <ReliabilityView onPick={openPassport} L={L} />
+          </div>
+        ) : null}
+        {step === 3 ? <ActionView onPick={openPassport} wos={wos} onRaise={raiseWO} L={L} /> : null}
+        {step === 4 ? (
+          <div className="space-y-6">
+            <EconomicsView onPick={openPassport} L={L} />
+            <section className="panel relative overflow-hidden p-6">
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="grid h-12 w-12 place-items-center rounded-2xl border border-brand-400/30 bg-brand-400/10 text-brand-300"><FileText size={24} /></span>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-semibold">{L({ en: "Asset Report", th: "รายงานสินทรัพย์" })}</h3>
+                  <p className="mt-1 text-sm text-white/60">{L({ en: "Every figure comes from the asset register & real work-order history — traceable, no estimates.", th: "ทุกตัวเลขมาจากทะเบียนสินทรัพย์และประวัติงานซ่อมจริง — ตรวจสอบได้ ไม่ใช่ตัวเลขคาดเดา" })}</p>
+                </div>
+                <button className="btn-glow px-4 py-2.5 text-sm"><Download size={15} /> {L({ en: "Export report", th: "ดาวน์โหลดรายงาน" })}</button>
+              </div>
+              <AskCopilot prompt={locale === "th" ? "สรุปสถานะสินทรัพย์เดือนนี้ และควรลงทุนซ่อมหรือเปลี่ยนอะไรก่อน" : "Summarize this month's asset health and what to repair or replace first"} className="btn-ghost mt-4 w-full justify-center py-2 text-sm">{L({ en: "Ask AI to summarize the fleet", th: "ให้ AI สรุปภาพรวมสินทรัพย์" })}</AskCopilot>
+            </section>
+          </div>
+        ) : null}
       </motion.div>
     </main>
   );

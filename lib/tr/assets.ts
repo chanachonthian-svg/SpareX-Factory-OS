@@ -11,7 +11,7 @@ export const assetsDict: TrDict = {
 
   // —— health score view ——
   "Asset Health Score": { th: "คะแนนสุขภาพสินทรัพย์", ja: "資産ヘルススコア", zh: "资产健康评分" },
-  "Watch · 1 critical": { th: "เฝ้าระวัง · วิกฤต 1 รา·าร", ja: "監視 · 重大1件", zh: "关注 · 1项严重" },
+  "Watch · 1 critical": { th: "เฝ้าระวัง · วิกฤต 1 รายการ", ja: "監視 · 重大1件", zh: "关注 · 1项严重" },
   "Healthy": { th: "ปกติ", ja: "正常", zh: "健康" },
   "Warning": { th: "เตือน", ja: "警告", zh: "警告" },
   "Critical": { th: "วิกฤต", ja: "重大", zh: "严重" },
@@ -22,7 +22,7 @@ export const assetsDict: TrDict = {
 
   // —— exec summary view ——
   "Avg Health": { th: "สุขภาพเฉลี่ย", ja: "平均ヘルス", zh: "平均健康度" },
-  "Predicted Failures": { th: "การเสี·ี่คาดการณ์", ja: "予測故障", zh: "预测故障" },
+  "Predicted Failures": { th: "การเสียที่คาดการณ์", ja: "予測故障", zh: "预测故障" },
   "Risk Exposure": { th: "มูลค่าความเสี่ยง", ja: "リスクエクスポージャー", zh: "风险敞口" },
   "AI Asset Summary": { th: "สรุปสินทรัพย์โดย AI", ja: "AI資産サマリー", zh: "AI资产摘要" },
   "is the top risk — condenser fouling, ~3 days RUL, ฿3.5M exposure. A work order is staged. Stamping Press 03 and Air Compressor 10 are trending toward service. Overall fleet health is": {
@@ -35,7 +35,7 @@ export const assetsDict: TrDict = {
 
   // —— live status view ——
   "Real-time asset status": { th: "สถานะสินทรัพย์เรียลไทม์", ja: "リアルタイム資産状態", zh: "实时资产状态" },
-  "Live": { th: "สด", ja: "ライブ", zh: "实时" },
+  "Live": { th: "ขณะนี้", ja: "ライブ", zh: "实时" },
 
   // —— work orders view ——
   "Open work orders": { th: "ใบสั่งงานที่เปิดอยู่", ja: "オープン作業指示", zh: "未完工单" },
@@ -52,13 +52,13 @@ export const assetsDict: TrDict = {
   "Exhaust-filter replacement": { th: "เปลี่ยนไส้กรองไอเสีย", ja: "排気フィルタ交換", zh: "更换排风滤芯" },
   "Aeration blower service": { th: "บริการ Blower เติมอากาศ", ja: "曝気ブロワ整備", zh: "曝气风机保养" },
   "Predictive inspection": { th: "การตรวจสอบเชิงพยากรณ์", ja: "予知保全点検", zh: "预测性检查" },
-  "1 on order": { th: "สั่งซื้อ 1 รา·าร", ja: "1点発注済", zh: "1件在订" },
+  "1 on order": { th: "สั่งซื้อ 1 รายการ", ja: "1点発注済", zh: "1件在订" },
   "In stock": { th: "มีในสต็อก", ja: "在庫あり", zh: "有库存" },
 
   // —— copilot view ——
   "Asset Copilot": { th: "ผู้ช่วยสินทรัพย์ AI", ja: "資産コパイロット", zh: "资产副驾驶" },
   "Ask anything about asset health — grounded in live sensor data": {
-    th: "ถามอะไรก็ได้เกี่ยวกับสุขภาพสินทรัพย์ — อ้างอิงข้อมูลเซ็นเซอร์สด",
+    th: "ถามอะไรก็ได้เกี่ยวกับสุขภาพสินทรัพย์ — อ้างอิงข้อมูลเซ็นเซอร์ปัจจุบัน",
     ja: "資産ヘルスについて何でも質問 — ライブセンサーデータに基づく",
     zh: "关于资产健康随意提问 — 基于实时传感器数据",
   },
@@ -71,12 +71,12 @@ export const assetsDict: TrDict = {
   "Why is Chiller B failing?": { th: "ทำไม Chiller B ถึงกำลังเสียหาย?", ja: "Chiller Bはなぜ故障しかけているのか？", zh: "Chiller B为何即将故障？" },
   "What's the RUL of Stamping Press 03?": { th: "RUL ของ Stamping Press 03 คือเท่าไร?", ja: "Stamping Press 03のRULは？", zh: "Stamping Press 03的RUL是多少？" },
   "Recommend maintenance for this week": { th: "แนะนำการซ่อมบำรุงสำหรับสัปดาห์นี้", ja: "今週の保全を推奨して", zh: "推荐本周的维护" },
-  "Explain the vibration alarm on Air Comp 10": { th: "อธิบา·ารเตือนการสั่นสะเทือนของ Air Comp 10", ja: "Air Comp 10の振動警報を説明して", zh: "解释Air Comp 10的振动报警" },
+  "Explain the vibration alarm on Air Comp 10": { th: "อธิบายการเตือนการสั่นสะเทือนของ Air Comp 10", ja: "Air Comp 10の振動警報を説明して", zh: "解释Air Comp 10的振动报警" },
   "Which assets should I service first?": { th: "ควรซ่อมบำรุงสินทรัพย์ใดก่อน?", ja: "どの資産を先に整備すべき？", zh: "应先保养哪些资产？" },
 
   // —— generic view (bespoke strings) ——
   "runs on the live asset model (vibration · thermal · current fusion). Ask the Asset Copilot to generate this analysis.": {
-    th: "ทำงานบนโมเดลสินทรัพย์แบบสด (รวมข้อมูลการสั่นสะเทือน · ความร้อน · กระแส) · ขอให้ผู้ช่วยสินทรัพย์สร้างการวิเคราะห์นี้ได้",
+    th: "ทำงานบนโมเดลสินทรัพย์แบบเรียลไทม์ (รวมข้อมูลการสั่นสะเทือน · ความร้อน · กระแส) · ขอให้ผู้ช่วยสินทรัพย์สร้างการวิเคราะห์นี้ได้",
     ja: "ライブ資産モデル（振動 · 熱 · 電流のフュージョン）で稼働。この分析の生成は資産コパイロットに依頼してください。",
     zh: "运行于实时资产模型（振动 · 热 · 电流融合）。可请资产副驾驶生成此分析。",
   },

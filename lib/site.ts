@@ -15,6 +15,10 @@
   | "iot"
   | "apm"
   | "workorder"
+  | "event"
+  | "notification"
+  | "pq"
+  | "air"
   | "settings";
 
 export const brand = {
@@ -216,19 +220,26 @@ export const osNav: {
   subKey?: string; // short plain-language description shown under the name
   dev?: boolean; // module is still under development — shown with a "dev" badge
   maintenance?: boolean; // module is temporarily under maintenance
+  section: "core" | "modules";
 }[] = [
-  { label: "Executive Dashboard", tKey: "nav.exec", href: "/os", icon: "brain", accent: "#22d3ee" },
-  { label: "EnergyAI", tKey: "nav.energyai", href: "/os/energy", icon: "energy", accent: "#22d3ee", subKey: "nav.energyai.sub" },
-  { label: "RPM Intelligence", tKey: "nav.rpm", href: "/os/rpm", icon: "apm", accent: "#f472b6", subKey: "nav.rpm.sub" },
-  { label: "AssetIQ", tKey: "nav.assetiq", href: "/os/assets", icon: "asset", accent: "#60a5fa", subKey: "nav.assetiq.sub", dev: true },
-  { label: "VisionIQ", tKey: "nav.visioniq", href: "/os/vision", icon: "vision", accent: "#c084fc", subKey: "nav.visioniq.sub" },
-  { label: "OEE Intelligence", tKey: "nav.oee", href: "/os/production", icon: "production", accent: "#f59e0b", subKey: "nav.oee.sub", maintenance: true },
-  { label: "Work Orders", tKey: "nav.workorders", href: "/os/workorders", icon: "workorder", accent: "#60a5fa", subKey: "nav.workorders.sub" },
-  { label: "Alarm Center", tKey: "nav.alarms", href: "/os/alarms", icon: "alarm", accent: "#f59e0b" },
-  { label: "ESG & Carbon", tKey: "nav.esg", href: "/os/carbon", icon: "carbon", accent: "#4ade80" },
-  { label: "Digital Twin", tKey: "nav.twin", href: "/os/twin", icon: "twin", accent: "#a78bfa" },
+  { label: "Executive Dashboard", tKey: "nav.exec", href: "/os", icon: "brain", accent: "#22d3ee", section: "core" },
+  { label: "Alarm Center", tKey: "nav.alarms", href: "/os/alarms", icon: "alarm", accent: "#f59e0b", section: "core" },
+  { label: "Event Center", tKey: "nav.events", href: "/os/events", icon: "event", accent: "#38bdf8", section: "core" },
+  { label: "Work Order Center", tKey: "nav.workorderCenter", href: "/os/workorders", icon: "workorder", accent: "#60a5fa", section: "core" },
+  { label: "Notification Center", tKey: "nav.notifications", href: "/os/notifications", icon: "notification", accent: "#a78bfa", section: "core" },
+  // Report Center removed from the sidebar (user request 2026-07-13) — every
+  // module now carries its own Step-5 report builder; the /os/reports route
+  // still exists for direct links.
+  { label: "Settings", tKey: "nav.settings", href: "/os/settings", icon: "settings", accent: "#94a3b8", subKey: "nav.settings.sub", section: "core" },
+  { label: "Energy Intelligence", tKey: "nav.energyai", href: "/os/energy", icon: "energy", accent: "#22d3ee", subKey: "nav.energyai.sub", section: "modules" },
+  { label: "Power Quality Intelligence", tKey: "nav.pq", href: "/os/power-quality", icon: "pq", accent: "#2dd4bf", subKey: "nav.pq.sub", section: "modules" },
+  { label: "Vortiq Compressed Air", tKey: "nav.vortiq", href: "/os/vortiq", icon: "air", accent: "#38bdf8", subKey: "nav.vortiq.sub", section: "modules" },
+  { label: "RPM Intelligence", tKey: "nav.rpm", href: "/os/rpm", icon: "apm", accent: "#f472b6", subKey: "nav.rpm.sub", section: "modules" },
+  { label: "VisionIQ", tKey: "nav.visioniq", href: "/os/vision", icon: "vision", accent: "#c084fc", subKey: "nav.visioniq.sub", section: "modules" },
+  { label: "Production Intelligence", tKey: "nav.oee", href: "/os/production", icon: "production", accent: "#f59e0b", subKey: "nav.oee.sub", section: "modules" },
+  { label: "Sustainability Intelligence", tKey: "nav.esg", href: "/os/carbon", icon: "carbon", accent: "#4ade80", section: "modules" },
+  { label: "Digital Twin", tKey: "nav.twin", href: "/os/twin", icon: "twin", accent: "#a78bfa", section: "modules" },
   // Copilot page removed from the rail — the floating chat widget (bottom-right) covers it on every page
-  { label: "Settings", tKey: "nav.settings", href: "/os/settings", icon: "settings", accent: "#94a3b8", subKey: "nav.settings.sub" },
 ];
 
 export const benchmarks = [

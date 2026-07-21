@@ -9,7 +9,7 @@ export const baseYear = 2021;
 
 /** headline figures (tCO₂e, month-to-date) */
 export const kpi = {
-  scope1: 312,
+  scope1: 442, // = Σ direct sources (natural gas 220 + steam 130 + refrigerants 64 + diesel 28)
   scope2: 540,
   scope3: 1180,
   intensity: 0.42, // kgCO₂e per unit produced
@@ -47,6 +47,13 @@ export const bySource: { name: CZ; value: number; scope: 1 | 2 }[] = [
   { name: { en: "Diesel (backup)", th: "ดีเซล (สำรอง)" }, value: 28, scope: 1 },
 ];
 
+/** Scope 1 (direct) grouped by GHG-Protocol category · Σ = kpi.scope1 (442) */
+export const scope1Categories: { name: CZ; value: number }[] = [
+  { name: { en: "Stationary combustion", th: "เผาไหม้อยู่กับที่" }, value: 350 }, // natural gas + steam/boiler
+  { name: { en: "Fugitive · refrigerants", th: "รั่วไหล · สารทำความเย็น" }, value: 64 },
+  { name: { en: "Mobile · backup diesel", th: "เคลื่อนที่ · ดีเซลสำรอง" }, value: 28 },
+];
+
 /** Scope 3 value-chain categories (tCO₂e, MTD) */
 export const scope3 = [
   { name: { en: "Purchased goods & materials", th: "วัตถุดิบที่จัดซื้อ" }, value: 620 },
@@ -55,6 +62,18 @@ export const scope3 = [
   { name: { en: "Business travel & commute", th: "เดินทาง & พนักงาน" }, value: 95 },
   { name: { en: "Waste & wastewater", th: "ของเสีย & น้ำเสีย" }, value: 80 },
 ];
+
+/** activity data behind Scope 1·2·3 — the measured quantities auditors trace back to (MTD) */
+export const activityData = {
+  scope1: [
+    { name: { en: "Natural gas", th: "ก๊าซธรรมชาติ" }, qty: "118,400", unit: "Nm³" },
+    { name: { en: "Boiler fuel / steam", th: "เชื้อเพลิงหม้อไอน้ำ" }, qty: "1,920", unit: "GJ" },
+    { name: { en: "Refrigerant top-up · R-134a", th: "เติมสารทำความเย็น · R-134a" }, qty: "45", unit: "kg" },
+    { name: { en: "Diesel (backup gen)", th: "ดีเซล (เครื่องสำรอง)" }, qty: "10,400", unit: "L" },
+  ] as { name: CZ; qty: string; unit: string }[],
+  scope2: { mwh: "1,380", gridFactor: "0.4999", factorSource: "EPPO" },
+  scope3Coverage: { measured: 5, total: 15, spendPct: 82 },
+};
 
 /** Scope 2 dual reporting (GHG Protocol) */
 export const scope2Dual = {
@@ -143,6 +162,39 @@ export const credits = {
 
 /** tCO₂e already abated year-to-date (drives the real-world equivalents) */
 export const abatedYtd = 3120;
+
+/** decoupling — production output climbs while emissions fall (Jan = 100).
+ *  The widening jaws are the board-level proof that growth ≠ more carbon. */
+export const decouplingTrend = [
+  { t: "Jan", output: 100, emissions: 100 },
+  { t: "Feb", output: 103, emissions: 102 },
+  { t: "Mar", output: 106, emissions: 101 },
+  { t: "Apr", output: 108, emissions: 98 },
+  { t: "May", output: 112, emissions: 93 },
+  { t: "Jun", output: 116, emissions: 89 },
+  { t: "Jul", output: 118, emissions: 84 },
+  { t: "Aug", output: 121, emissions: 82 },
+  { t: "Sep", output: 124, emissions: 83 },
+];
+
+/** T-VER credit pipeline — how far each verified tonne is from being sellable */
+export const creditPipeline: { stage: CZ; tco2e: number; note: CZ }[] = [
+  { stage: { en: "Credits issued", th: "ออกเครดิตแล้ว" }, tco2e: 1240, note: { en: "registered & sellable", th: "ขึ้นทะเบียนแล้ว ขายได้" } },
+  { stage: { en: "Submitted to TGO", th: "ยื่น TGO รอตรวจ" }, tco2e: 540, note: { en: "under validation · ~8 weeks", th: "อยู่ระหว่างตรวจรับรอง · ~8 สัปดาห์" } },
+  { stage: { en: "Measured, not yet filed", th: "วัดผลแล้ว ยังไม่ยื่น" }, tco2e: 460, note: { en: "evidence pack auto-compiled by SpareX", th: "SpareX รวบรวมหลักฐานให้อัตโนมัติ" } },
+];
+
+/** CBAM exposure — what EU-bound products cost in certificates at today's
+ *  embedded carbon (EU ETS price × tCO₂e shipped per year) */
+export const cbamExposure = {
+  etsEur: 85, // €/tCO₂e (EU ETS reference)
+  fxThb: 39, // ฿/€
+  items: [
+    { sku: "AL-6061-BILLET", unitsYr: 120_000 },
+    { sku: "STL-PLATE-A36", unitsYr: 260_000 },
+  ] as { sku: string; unitsYr: number }[],
+  planReductionPct: 30, // PCF drop if the Act pipeline is delivered
+};
 
 /** relatable equivalents for a tonnage of CO₂e */
 export const equivalents = (tco2e: number) => ({

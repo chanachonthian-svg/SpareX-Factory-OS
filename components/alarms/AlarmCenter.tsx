@@ -58,8 +58,8 @@ export function AlarmCenter() {
         <div className="flex flex-wrap items-center gap-3 border-b border-white/10 p-5">
           <BellRing size={18} className="text-amber-300" />
           <div>
-            <h3 className="font-semibold">{tr("Alarm stream")}</h3>
-            <p className="mt-0.5 text-xs text-white/45">{tr("Cross-module events · AI-prioritized")}</p>
+            <h3 className="font-semibold">{tr("Alarm Stream")}</h3>
+            <p className="mt-0.5 text-xs text-white/45">{tr("Which alarm to handle first · AI-ranked")}</p>
           </div>
           <div className="ml-auto flex items-center gap-1.5">
             {(["all", "critical", "warning", "info"] as const).map((f) => (

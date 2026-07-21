@@ -127,7 +127,7 @@ export function classifyHarmonics(inp: HarmonicInput): PqFinding[] {
       found: foundLine(even),
       where: { en: "A specific device — often a half-wave rectifier, a welder, a saturating transformer, or a rectifier / drive starting to fail", th: "อุปกรณ์ตัวใดตัวหนึ่ง — มักเป็นเรกติไฟเออร์ครึ่งคลื่น, เครื่องเชื่อม, หม้อแปลงที่อิ่มตัว หรือเรกติไฟเออร์/ไดรฟ์ที่เริ่มจะเสีย" },
       cause: { en: "Even harmonics mean an asymmetric current waveform (a DC offset). Healthy 3-phase loads produce almost none — their appearance usually signals a fault or a failing component", th: "ฮาร์มอนิกเลขคู่แปลว่ารูปคลื่นกระแสไม่สมมาตร (มี DC offset) โหลด 3 เฟสปกติแทบไม่สร้างเลขคู่ — การที่โผล่มามักชี้ว่ามีของเสียหรืออุปกรณ์กำลังจะพัง" },
-      fix: { en: "Inspect to find the offending device (check for a failed rectifier diode / DC offset) before it fails fully; a broadband AHF suppresses it in the meantime", th: "ตรวจหาอุปกรณ์ต้นเหตุ (เช็กไดโอดเรกติไฟเออร์ที่เสีย / DC offset) ก่อนพังสนิท; ระหว่างนั้นใช้ AHF บรอดแบนด์ช่ว·ด" },
+      fix: { en: "Inspect to find the offending device (check for a failed rectifier diode / DC offset) before it fails fully; a broadband AHF suppresses it in the meantime", th: "ตรวจหาอุปกรณ์ต้นเหตุ (เช็กไดโอดเรกติไฟเออร์ที่เสีย / DC offset) ก่อนพังสนิท; ระหว่างนั้นใช้ AHF บรอดแบนด์ช่วยลด" },
       impact: { en: "catches a failing device before an unplanned breakdown", th: "จับอุปกรณ์ที่กำลังจะเสียได้ก่อนพังกะทันหัน" },
     });
   }

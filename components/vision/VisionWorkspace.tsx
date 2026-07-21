@@ -1,20 +1,24 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, ScanEye, Brain, Zap, FileText, Sparkles, AlertTriangle,
   ArrowRight, ChevronRight, ExternalLink, TrendingUp, Radar,
   Wrench, Check, Eye, Activity, Download, Beaker, Building2, Cpu,
   GraduationCap, RefreshCw, Tag, Plus, UploadCloud, X, LayoutGrid, LayoutPanelLeft, Lock, Pencil,
-  Clock, Package, Factory, Banknote, Settings2, RotateCcw, ScanSearch, Fingerprint, History,
+  Clock, Package, Factory, Banknote, Settings2, RotateCcw, ScanSearch, History,
   Mail, MessageCircle, Trash2, Bell, Send, Save,
+  Rocket, Wallet, Bot, Gauge, Paperclip, ChevronDown,
 } from "lucide-react";
+import { currentUser, SPAREX_SALES_EMAIL } from "@/lib/user";
+import { Icon3D } from "@/components/os/Icon3D";
 import { openCopilot, cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
+import { WorkflowBar } from "@/components/os/WorkflowNav";
 import { KpiCard } from "@/components/os/KpiCard";
-import { AiInsight } from "@/components/os/AiInsight";
 import { useCostOverrides, paramsFor, setCostParam, resetCostParams, type CostParams } from "@/lib/visioncost";
 import { useRuleOverrides, ruleFor, setRule, resetRule, ruleMetaFor, type DispositionRule } from "@/lib/visionrules";
 import { useRecipients, addRecipient, updateRecipient, removeRecipient, toggleRecipientEvent, NOTIFY_EVENTS, type Recipient } from "@/lib/visionnotify";
@@ -25,8 +29,8 @@ import {
   defects, defectCost, scrapUnits, reworkUnits, copq, copqBreakdown, inspectedToday, defectsToday,
   fpy, defectRatePpm, modelConfidence, escapes, daysClean, qualityHealthScore, revenueAtRisk,
   stations, detections, defectByMachine, defectByShift, defectByProduct, defectByLine,
-  cameraRig, CAMERA_SPEC, aiBrief, inspectionHealth, lineHealth,
-  rootCauses, dimDrift, correlations, chainNodeTitles, processInsights, predictions, defectPatterns, similarCases,
+  cameraRig, CAMERA_SPEC, inspectionHealth, lineHealth,
+  rootCauses, correlations, chainNodeTitles, processInsights, predictions, similarCases,
   defectClasses, classById, learningQueue,
   actions, actionFor, simScenarios, reportTemplates, copilotSuggestions, thbCompact,
   type LZ, type Correlation, type Action, type Glyph, type LearnItem, type DefectClass, type RigCam, type ReportSchedule, type ReportTemplate,
@@ -36,6 +40,131 @@ type Tr = (o: LZ) => string;
 const PURPLE = "#c084fc";
 const scoreColor = (v: number) => (v >= 90 ? "#34d399" : v >= 80 ? "#22d3ee" : v >= 70 ? "#f59e0b" : "#f43f5e");
 const scoreVar = (v: number) => (v >= 90 ? "var(--c-emerald)" : v >= 80 ? "var(--c-cyan)" : v >= 70 ? "var(--c-amber-strong)" : "var(--c-rose)");
+
+/* live process-pulse data — deterministic (no Math.random at module scope, keeps SSR stable):
+   reject rate in 5-min windows over the last ~2 h, drifting up into a control-limit breach. */
+const RR_WINDOWS = [0.9, 1.1, 0.8, 1.0, 1.2, 0.9, 1.1, 1.3, 1.0, 1.2, 1.4, 1.1, 1.3, 1.5, 1.2, 1.4, 1.6, 1.8, 1.9, 2.2, 2.5, 2.9, 3.2, 3.1];
+const RR_BASELINE = 1.15; // process mean
+const RR_UCL = 2.0;       // upper control limit (mean + 3σ)
+const INSPECT_PACE = { partsMin: 39, capacityMin: 41, cycleS: 1.42, taktS: 1.5 }; // is the QC gate keeping up with line takt?
+
+/* quality goals (what "good" looks like) + today's defects by hour — both deterministic. */
+const QUALITY_TARGETS = { fpy: 99.5, defectPpm: 5000, copqDay: 35_000 };
+// defects cluster at shift-start warm-up (08), a mid-shift changeover (14) and the night-shift start (22)
+const DEFECT_BY_HOUR = [5, 4, 4, 3, 3, 4, 6, 10, 16, 12, 9, 8, 9, 13, 17, 12, 9, 8, 7, 7, 9, 12, 15, 10];
+
+/* ── Vision Action data — Part 1 zero-invest quick wins + Part 2 capital projects (BOM) ── */
+
+/** One BOM line on a capital project — brand + part number an engineer can order. */
+type ActionPart = { brand: string; partNo: string; name: LZ; qty: number; unitPrice: number };
+
+/** Part 1 · Quick wins — no hardware, config / scheduling only (฿0 capex). */
+const visionQuickWins: { id: string; title: LZ; asset: LZ; how: LZ; savingYr: number; effort: LZ }[] = [
+  {
+    id: "qw-firstoff",
+    title: { en: "Enforce first-off approval after every changeover", th: "บังคับอนุมัติชิ้นแรกทุกครั้งหลังเปลี่ยนรุ่น" },
+    asset: { en: "All lines · setup", th: "ทุกไลน์ · เซ็ตอัพ" },
+    how: { en: "Gate the line via PLC so production can't start until QC approves the first part after a changeover or shift start — kills the 30-minute post-changeover defect spike.", th: "ล็อกไลน์ผ่าน PLC ไม่ให้เดินเครื่องจนกว่า QC อนุมัติชิ้นแรกหลังเปลี่ยนรุ่น/เปิดกะ — ดับพีคดีเฟกต์ 30 นาทีแรกหลังเปลี่ยนรุ่น" },
+    savingYr: 1_200_000,
+    effort: { en: "SOP + PLC interlock", th: "SOP + อินเตอร์ล็อก PLC" },
+  },
+  {
+    id: "qw-nightcert",
+    title: { en: "Certify & retrain the Shift-B setup crew", th: "อบรม & รับรองทีมเซ็ตอัพกะดึก B" },
+    asset: { en: "Shift B", th: "กะดึก B" },
+    how: { en: "Shift B's defect rate runs 2.1× the day shift — a one-cycle setup certification closes the gap with no hardware.", th: "อัตราของเสียกะ B สูงเป็น 2.1 เท่าของกะเช้า — อบรมรับรองการเซ็ตอัพรอบเดียวก็ปิดช่องว่างได้โดยไม่ต้องมีฮาร์ดแวร์" },
+    savingYr: 900_000,
+    effort: { en: "1 training cycle", th: "อบรม 1 รอบ" },
+  },
+  {
+    id: "qw-diecheck",
+    title: { en: "Add an 8,000-stroke die-wear check to the SOP", th: "เพิ่มเช็คระยะดายทุก 8,000 สโตรกใน SOP" },
+    asset: { en: "Stamping Press 03", th: "Stamping Press 03" },
+    how: { en: "Schedule a quick die-clearance check every 8,000 strokes so drift is caught before parts creep over spec — buys time to plan the regrind.", th: "ตั้งเช็คระยะดายทุก 8,000 สโตรก จับการดริฟต์ก่อนชิ้นงานเกินสเปก — มีเวลาวางแผนเจียรดายล่วงหน้า" },
+    savingYr: 700_000,
+    effort: { en: "SOP update", th: "อัปเดต SOP" },
+  },
+  {
+    id: "qw-coilqc",
+    title: { en: "Gauge & quarantine suspect incoming coil lots", th: "วัดความหนา & กักล็อตคอยล์ต้องสงสัยขาเข้า" },
+    asset: { en: "Incoming QC", th: "ตรวจรับเข้า" },
+    how: { en: "Add a coil-thickness check at goods-in and hold any lot outside spec — stops out-of-spec coil from ever reaching the press.", th: "เพิ่มการวัดความหนาคอยล์ตอนรับเข้า และกักล็อตที่หลุดสเปก — กันคอยล์นอกสเปกไม่ให้ถึงเครื่องปั๊ม" },
+    savingYr: 500_000,
+    effort: { en: "incoming inspection step", th: "เพิ่มขั้นตรวจรับเข้า" },
+  },
+  {
+    id: "qw-boothdp",
+    title: { en: "Weekly ΔP check on the Paint Booth 14 exhaust filter", th: "เช็ค ΔP กรองไอเสีย Paint Booth 14 รายสัปดาห์" },
+    asset: { en: "Paint Booth 14", th: "Paint Booth 14" },
+    how: { en: "A weekly differential-pressure check flags a clogging exhaust filter before airflow drops and color runs/sags appear.", th: "เช็คความต่างความดัน (ΔP) รายสัปดาห์ จับไส้กรองตันก่อนลมตกและเกิดสีย้อย/สีไหล" },
+    savingYr: 400_000,
+    effort: { en: "weekly PM", th: "PM รายสัปดาห์" },
+  },
+];
+
+/** Part 2 · Capital projects — with investment; each carries a full BOM (brand + part no.). */
+const visionCapitalProjects: {
+  id: string; code: string; title: LZ; asset: LZ; severity: "critical" | "warning" | "recommend";
+  capex: number; savingYr: number; paybackMo: number; roi: number;
+  why: LZ; evidence: LZ; outcome: LZ; parts: ActionPart[];
+}[] = [
+  {
+    id: "vis-die", code: "VIS-01",
+    title: { en: "Regrind the die + fit a new shim set · Stamping Press 03", th: "เจียรดาย + เปลี่ยนชุดชิม · Stamping Press 03" },
+    asset: { en: "Stamping Press 03", th: "Stamping Press 03" },
+    severity: "critical", capex: 85_000, savingYr: 2_400_000, paybackMo: 1, roi: 2824,
+    why: { en: "The worn Press 03 die is the single biggest defect source — parts creep oversize until they're rejected.", th: "ดายที่สึกของ Press 03 เป็นต้นตอดีเฟกต์ที่ใหญ่สุด — ชิ้นงานค่อยๆ ใหญ่เกินจนถูกคัดออก" },
+    evidence: { en: "Measured part size climbs steadily with strokes since the last die service, crossing the +0.25mm limit.", th: "ขนาดชิ้นงานที่วัดได้ไต่ขึ้นตามจำนวนสโตรกตั้งแต่ซ่อมดายครั้งล่าสุด จนเกินลิมิต +0.25mm" },
+    outcome: { en: "Part size returns within spec and the dimensional defect disappears at its source.", th: "ขนาดชิ้นงานกลับเข้าสเปกและดีเฟกต์เรื่องขนาดหายที่ต้นตอ" },
+    parts: [
+      { brand: "Precision Tooling", partNo: "DIE-REGRIND-SP03", name: { en: "Die regrind & polish service", th: "บริการเจียร & ขัดดาย" }, qty: 1, unitPrice: 55000 },
+      { brand: "Misumi", partNo: "SHIM-SET-0.05-0.5", name: { en: "Precision shim set 0.05–0.5mm", th: "ชุดชิมความละเอียด 0.05–0.5mm" }, qty: 1, unitPrice: 8000 },
+      { brand: "Mitutoyo", partNo: "543-390B ABS Digimatic", name: { en: "Digital indicator for die-clearance", th: "ไดอัลเกจดิจิทัลวัดระยะดาย" }, qty: 1, unitPrice: 12000 },
+    ],
+  },
+  {
+    id: "vis-coil", code: "VIS-02",
+    title: { en: "Inline coil-thickness gauge + auto lot reject", th: "ติดเกจวัดความหนาคอยล์อินไลน์ + คัดล็อตอัตโนมัติ" },
+    asset: { en: "Coil feed · press line", th: "ชุดป้อนคอยล์ · ไลน์ปั๊ม" },
+    severity: "warning", capex: 320_000, savingYr: 1_400_000, paybackMo: 3, roi: 438,
+    why: { en: "Out-of-spec coil lots slip through and cause weld pinholes and assembly misfits.", th: "ล็อตคอยล์นอกสเปกหลุดเข้ามา ทำให้เกิดรูพรุนแนวเชื่อมและประกอบไม่เข้า" },
+    evidence: { en: "Defects cluster on Model B right after a coil-lot change.", th: "ดีเฟกต์กระจุกที่ Model B ทันทีหลังเปลี่ยนล็อตคอยล์" },
+    outcome: { en: "Bad coil is caught and diverted before the press — pinhole & misfit defects drop.", th: "คอยล์เสียถูกจับและคัดออกก่อนถึงเครื่องปั๊ม — รูพรุน & ประกอบไม่เข้าลดลง" },
+    parts: [
+      { brand: "Micro-Epsilon", partNo: "thicknessSENSOR 2301", name: { en: "Inline thickness sensor pair", th: "เซนเซอร์วัดความหนาอินไลน์ (คู่)" }, qty: 1, unitPrice: 210000 },
+      { brand: "SMC", partNo: "Reject diverter kit", name: { en: "Pneumatic lot-reject diverter", th: "ชุดคัดล็อตแบบนิวเมติก" }, qty: 1, unitPrice: 70000 },
+    ],
+  },
+  {
+    id: "vis-booth", code: "VIS-03",
+    title: { en: "Upgrade the Paint Booth 14 exhaust + swap the filter bank", th: "อัปเกรดระบบดูดไอเสีย + เปลี่ยนชุดกรอง Paint Booth 14" },
+    asset: { en: "Paint Booth 14", th: "Paint Booth 14" },
+    severity: "warning", capex: 280_000, savingYr: 900_000, paybackMo: 4, roi: 321,
+    why: { en: "Weak/uneven exhaust lets overspray settle, causing color runs & sags.", th: "ลมดูดอ่อน/ไม่สม่ำเสมอทำให้ละอองสีเกาะ เกิดสีย้อย & สีไหล" },
+    evidence: { en: "Color defects rise as the exhaust ΔP drifts up between filter changes.", th: "ดีเฟกต์เรื่องสีเพิ่มขึ้นเมื่อ ΔP ไอเสียไต่สูงระหว่างรอบเปลี่ยนกรอง" },
+    outcome: { en: "Stable airflow and clean extraction — color runs/sags come back under control.", th: "ลมนิ่งและดูดสะอาด — สีย้อย/สีไหลกลับมาคุมได้" },
+    parts: [
+      { brand: "Camfil", partNo: "Paint-stop filter bank", name: { en: "Exhaust filter bank", th: "ชุดไส้กรองไอเสีย" }, qty: 1, unitPrice: 120000 },
+      { brand: "Schneider Electric", partNo: "Altivar ATV320 5.5kW", name: { en: "Exhaust-fan VFD", th: "VFD พัดลมดูดไอเสีย" }, qty: 1, unitPrice: 65000 },
+      { brand: "Endress+Hauser", partNo: "Deltabar PMD75", name: { en: "ΔP transmitter", th: "ทรานสมิตเตอร์วัด ΔP" }, qty: 1, unitPrice: 45000 },
+    ],
+  },
+  {
+    id: "vis-cam", code: "VIS-04",
+    title: { en: "Add a 4th inspection camera + ring light for the blind spot", th: "เพิ่มกล้องตรวจตัวที่ 4 + ไฟวงแหวนที่จุดบอด" },
+    asset: { en: "V-B1 AI QC cell", th: "เซลล์ตรวจ AI V-B1" },
+    severity: "recommend", capex: 240_000, savingYr: 600_000, paybackMo: 5, roi: 250,
+    why: { en: "One face of the part is under-covered, so a fraction of surface defects escape the current 3-camera rig.", th: "ชิ้นงานด้านหนึ่งครอบคลุมไม่พอ ดีเฟกต์ผิวบางส่วนจึงหลุดจากชุดกล้อง 3 ตัวปัจจุบัน" },
+    evidence: { en: "Escapes trace back to the same unlit face on the fixture.", th: "ของหลุดสืบกลับไปที่หน้าที่ไม่มีไฟส่องเดิมบนฟิกซ์เจอร์" },
+    outcome: { en: "Full 4-angle coverage — the surface-defect escape rate drops toward zero.", th: "ครอบคลุมครบ 4 มุม — อัตราของหลุดจากดีเฟกต์ผิวลดเข้าใกล้ศูนย์" },
+    parts: [
+      { brand: "OMRON", partNo: "STC-HD213DV", name: { en: "Industrial camera 2.1MP", th: "กล้องอุตสาหกรรม 2.1MP" }, qty: 1, unitPrice: 95000 },
+      { brand: "OMRON", partNo: "FLV-RL ring light", name: { en: "High-intensity ring light", th: "ไฟวงแหวนความเข้มสูง" }, qty: 1, unitPrice: 35000 },
+      { brand: "Computar", partNo: "M118FM50 lens", name: { en: "Machine-vision lens 50mm", th: "เลนส์แมชชีนวิชัน 50mm" }, qty: 1, unitPrice: 28000 },
+      { brand: "Basler", partNo: "GigE interface card", name: { en: "GigE capture card", th: "การ์ดจับภาพ GigE" }, qty: 1, unitPrice: 22000 },
+    ],
+  },
+];
 
 /* ══════════════════════════ shared bits ══════════════════════════ */
 function Panel({ title, sub, extra, children, className }: { title?: string; sub?: string; extra?: React.ReactNode; children: React.ReactNode; className?: string }) {
@@ -204,88 +333,149 @@ function MultiCameraInspection({ L }: { L: Tr }) {
   );
 }
 
-/* ══════════════════════════ tab · OVERVIEW ══════════════════════════ */
-function OverviewView({ L, onAnalyze, onMonitor }: { L: Tr; onAnalyze: () => void; onMonitor: () => void }) {
-  const ranked = [...defects].sort((a, b) => defectCost(b) - defectCost(a)).slice(0, 5);
-  const maxCost = Math.max(...ranked.map(defectCost));
-  // trend pair — one coherent story: defects creeping up (die wear) pulls FPY down
-  const fpyTrend = series(70, 16, { base: 60, amp: 6, trend: -4 });
-  const defTrend = fpyTrend.map((v) => 120 - v);
+/* ══════════════ live process pulse — SPC + throughput (statistical, not AI) ══════════════ */
+/** Reject-rate control chart with real axes — Y = reject rate %, X = time (last 2 h).
+ *  Mean + UCL are labelled reference lines; points above the limit go red, latest ringed.
+ *  Keeps its aspect ratio (no stretch) so labels stay crisp in both themes. */
+function RejectRateSPC({ data, baseline, ucl, L }: { data: number[]; baseline: number; ucl: number; L: Tr }) {
+  const VW = 620, VH = 210, mL = 30, mR = 48, mT = 10, mB = 26;
+  const pw = VW - mL - mR, ph = VH - mT - mB;
+  const peak = Math.max(ucl, ...data);
+  const yMax = peak <= 3.5 ? 4 : Math.ceil(peak + 0.5);
+  const x = (i: number) => mL + (i / (data.length - 1)) * pw;
+  const y = (v: number) => mT + ph - (v / yMax) * ph;
+  const line = data.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const area = `${line} L${x(data.length - 1).toFixed(1)},${mT + ph} L${x(0).toFixed(1)},${mT + ph} Z`;
+  const yTicks = Array.from({ length: yMax + 1 }, (_, t) => t);
+  const xTicks = [
+    { i: 0, lab: L({ en: "2h ago", th: "2 ชม.ก่อน" }), a: "start" as const },
+    { i: Math.round((data.length - 1) / 2), lab: L({ en: "1h ago", th: "1 ชม.ก่อน" }), a: "middle" as const },
+    { i: data.length - 1, lab: L({ en: "now", th: "ตอนนี้" }), a: "end" as const },
+  ];
+  const AX = "#94a3b8";
   return (
-    <div className="space-y-6">
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <KpiCard label={L({ en: "Quality health score", th: "คะแนนคุณภาพรวม" })} value={`${qualityHealthScore}`} unit="/100" delta={L({ en: "watch", th: "เฝ้าระวัง" })} deltaGood={false} accent={PURPLE} />
-        <KpiCard label={L({ en: "First pass yield", th: "ผ่านครั้งแรก (FPY)" })} value={`${fpy}`} unit="%" delta={`-0.3pp · ${L({ en: "slipping", th: "กำลังย่อ" })}`} deltaGood={false} accent="#34d399" spark={series(71, 16, { base: 55, amp: 5, trend: -3 })} />
-        <KpiCard label={L({ en: "Defect rate", th: "อัตราดีเฟกต์" })} value={defectRatePpm.toLocaleString()} unit="ppm" delta={L({ en: "rising", th: "กำลังเพิ่ม" })} deltaGood={false} accent="#f59e0b" spark={series(72, 16, { base: 48, amp: 6, trend: 6 })} />
-        <KpiCard label={L({ en: "COPQ · today", th: "ต้นทุนคุณภาพ · วันนี้" })} value={thbCompact(copq.today)} delta={`${thbCompact(copq.invisible)} ${L({ en: "hidden", th: "ซ่อนอยู่" })}`} deltaGood={false} accent="#f43f5e" />
-      </section>
-
-      <section className="grid gap-6 lg:grid-cols-[260px_1fr]">
-        <div className="flex flex-col gap-6">
-          {/* how trustworthy the inspection system itself is */}
-          <Panel className="flex flex-col items-center text-center">
-            <p className="text-[11px] uppercase tracking-wider text-white/45">{L({ en: "Inspection health", th: "สุขภาพระบบตรวจ" })}</p>
-            <div className="mt-2"><Ring value={inspectionHealth.score} size={96} /></div>
-            <div className="mt-2.5 w-full space-y-1 text-left">
-              <div className="flex items-center justify-between text-[11px]"><span className="text-white/50">{L({ en: "Cameras healthy", th: "กล้องปกติ" })}</span><span className={cn("tabular font-semibold", inspectionHealth.okCams < inspectionHealth.totalCams ? "text-amber-300" : "text-emerald-300")}>{inspectionHealth.okCams}/{inspectionHealth.totalCams}</span></div>
-              <div className="flex items-center justify-between text-[11px]"><span className="text-white/50">{L({ en: "Avg camera accuracy", th: "ความแม่นกล้องเฉลี่ย" })}</span><span className="tabular font-semibold text-white/80">{inspectionHealth.avgAcc}%</span></div>
-              <div className="flex items-center justify-between text-[11px]"><span className="text-white/50">{L({ en: "AI confidence", th: "ความมั่นใจ AI" })}</span><span className="tabular font-semibold text-white/80">{modelConfidence}%</span></div>
-            </div>
-            <button onClick={onMonitor} className="btn-ghost mt-2.5 w-full justify-center py-1.5 text-[11px]">{L({ en: "See each camera", th: "ดูรา·ล้อง" })} <ArrowRight size={11} /></button>
-          </Panel>
-
-          {/* line-by-line health from today's ledger */}
-          <Panel>
-            <p className="text-[11px] uppercase tracking-wider text-white/45">{L({ en: "Line health · today", th: "สุขภาพรายไลน์ · วันนี้" })}</p>
-            <div className="mt-2.5 space-y-2">
-              {lineHealth.map((l) => { const hex = l.tone === "crit" ? "#f43f5e" : l.tone === "warn" ? "#f59e0b" : "#34d399"; const txt = l.tone === "crit" ? "var(--c-rose)" : l.tone === "warn" ? "var(--c-amber-strong)" : "var(--c-emerald)"; const lbl: LZ = l.tone === "crit" ? { en: "act now", th: "ต้องจัดการ" } : l.tone === "warn" ? { en: "watch", th: "เฝ้าระวัง" } : { en: "good", th: "ดี" }; return (
-                <div key={l.line} className="rounded-lg border border-white/8 bg-white/[0.02] px-2.5 py-2">
-                  <div className="flex items-center justify-between"><span className="flex items-center gap-1.5 text-[12px] font-medium text-white/85"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: hex }} />{l.line}</span><span className="text-[10px] font-semibold" style={{ color: txt }}>{L(lbl)}</span></div>
-                  <p className="mt-0.5 tabular text-[10px] text-white/45">{thbCompact(l.costTHB)}/{L({ en: "d", th: "วัน" })} · {l.count} {L({ en: "pcs", th: "ชิ้น" })}</p>
-                </div>
-              ); })}
-            </div>
-          </Panel>
-        </div>
-        <Panel title={L({ en: "Top critical defects", th: "ดีเฟกต์วิกฤตสูงสุด" })} sub={L({ en: "ranked by how much money each one is costing today", th: "เรียงตามเงินที่ทำให้เสียไปวันนี้" })}>
-          <ul className="space-y-2.5">
-            {ranked.map((d) => (
-              <li key={d.id} className="flex items-center gap-3">
-                <div className="min-w-0 flex-1"><div className="flex items-center justify-between text-[13px]"><span className="truncate font-medium text-white/85">{L(d.name)}</span><span className="shrink-0 tabular text-white/50">{d.count} · {L({ en: "on", th: "ที่" })} {d.machine}</span></div>
-                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-white/8"><div className="h-full rounded-full" style={{ width: `${(defectCost(d) / maxCost) * 100}%`, backgroundColor: PURPLE }} /></div>
-                </div>
-                <span className="w-16 shrink-0 text-right tabular text-[13px] font-semibold text-rose-300">{thbCompact(defectCost(d))}</span>
-              </li>
-            ))}
-          </ul>
-
-          {/* quality trend — fills the space under the list, same story continued */}
-          <div className="mt-5 border-t border-white/8 pt-4">
-            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h4 className="text-[13px] font-semibold">{L({ en: "Production quality trend", th: "เทรนด์คุณภาพการผลิต" })}</h4>
-                <p className="text-[10px] text-white/40">{L({ en: "FPY vs defect rate · last 16 shifts", th: "FPY เทียบอัตราดีเฟกต์ · 16 กะล่าสุด" })}</p>
-              </div>
-              <span className="flex items-center gap-3 text-[10px] text-white/50">
-                <span className="flex items-center gap-1"><span className="h-0.5 w-4 rounded-full bg-emerald-400" /> FPY</span>
-                <span className="flex items-center gap-1"><span className="h-0.5 w-4 rounded-full bg-rose-400" /> {L({ en: "defect rate", th: "อัตราดีเฟกต์" })}</span>
-              </span>
-            </div>
-            <AreaTrend data={fpyTrend} color="#34d399" data2={defTrend} color2="#f43f5e" />
-            <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-white/40"><span className="shrink-0">{L({ en: "16 shifts ago", th: "16 กะก่อน" })}</span><span className="min-w-0 truncate text-center" style={{ color: "var(--c-rose)" }}>{L({ en: "defects creeping up lately — the die-wear signature", th: "ดีเฟกต์ไต่ขึ้นช่วงหลัง — ลายเซ็นดายสึก" })}</span><span className="shrink-0">{L({ en: "now", th: "ตอนนี้" })}</span></div>
-          </div>
-        </Panel>
-      </section>
-
-      <AiInsight brief={aiBrief} L={L} onAction={onAnalyze} />
+    <svg viewBox={`0 0 ${VW} ${VH}`} className="w-full" style={{ aspectRatio: `${VW} / ${VH}` }}>
+      <defs><linearGradient id="rrArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={PURPLE} stopOpacity="0.22" /><stop offset="1" stopColor={PURPLE} stopOpacity="0" /></linearGradient></defs>
+      {/* out-of-control band (above UCL) */}
+      <rect x={mL} y={mT} width={pw} height={y(ucl) - mT} fill="rgba(244,63,94,0.06)" />
+      {/* Y grid + % labels */}
+      {yTicks.map((t) => (
+        <g key={t}>
+          <line x1={mL} x2={mL + pw} y1={y(t)} y2={y(t)} stroke={AX} strokeOpacity="0.14" strokeWidth="1" />
+          <text x={mL - 6} y={y(t) + 3.5} textAnchor="end" fontSize="10.5" fill={AX}>{t}{t === yMax ? "%" : ""}</text>
+        </g>
+      ))}
+      {/* baseline + UCL reference lines, labelled at the right edge */}
+      <line x1={mL} x2={mL + pw} y1={y(baseline)} y2={y(baseline)} stroke={AX} strokeOpacity="0.85" strokeWidth="1" strokeDasharray="2 3" />
+      <text x={mL + pw + 5} y={y(baseline) + 3.5} fontSize="10" fill={AX}>{L({ en: "base", th: "ฐาน" })} {baseline}</text>
+      <line x1={mL} x2={mL + pw} y1={y(ucl)} y2={y(ucl)} stroke="#f43f5e" strokeOpacity="0.7" strokeWidth="1" strokeDasharray="5 3" />
+      <text x={mL + pw + 5} y={y(ucl) + 3.5} fontSize="10" fill="#f43f5e" fontWeight="600">UCL {ucl}</text>
+      {/* X axis + time labels */}
+      <line x1={mL} x2={mL + pw} y1={mT + ph} y2={mT + ph} stroke={AX} strokeOpacity="0.35" strokeWidth="1" />
+      {xTicks.map((t) => <text key={t.i} x={x(t.i)} y={VH - 8} textAnchor={t.a} fontSize="10.5" fill={AX}>{t.lab}</text>)}
+      {/* series */}
+      <path d={area} fill="url(#rrArea)" />
+      <path d={line} fill="none" stroke={PURPLE} strokeWidth="2" strokeLinejoin="round" />
+      {data.map((v, i) => { const over = v > ucl; const last = i === data.length - 1; return <circle key={i} cx={x(i)} cy={y(v)} r={last ? 4 : over ? 3 : 1.8} fill={over ? "#f43f5e" : PURPLE} stroke={last ? "#fff" : "none"} strokeWidth={last ? 1.5 : 0} />; })}
+    </svg>
+  );
+}
+function PaceStat({ label, value, unit, color }: { label: string; value: string; unit: string; color: string }) {
+  return (
+    <div className="rounded-lg border border-white/8 bg-white/[0.02] px-2.5 py-2">
+      <p className="text-[10px] text-white/45">{label}</p>
+      <p className="tabular text-[15px] font-semibold" style={{ color }}>{value} <span className="text-[10px] font-normal text-white/45">{unit}</span></p>
     </div>
   );
 }
+/** The act-now heartbeat of Monitor: a live reject-rate control chart that trips a run-rule
+ *  alert the moment a line drifts out of control, plus whether the gate is keeping up with the
+ *  line. It states the statistical fact and hands the "why" to AI Analysis — no diagnosis here. */
+function ProcessPulse({ L, onInvestigate }: { L: Tr; onInvestigate: () => void }) {
+  const latest = RR_WINDOWS[RR_WINDOWS.length - 1];
+  const breach = latest > RR_UCL;
+  const ratio = (latest / RR_BASELINE).toFixed(1);
+  let over = 0; for (let i = RR_WINDOWS.length - 1; i >= 0 && RR_WINDOWS[i] > RR_UCL; i--) over++;
+  const critLine = lineHealth.find((l) => l.tone === "crit") ?? [...lineHealth].sort((a, b) => b.count - a.count)[0];
+  const topMachine = defectByMachine[0];
+  const util = Math.round((INSPECT_PACE.cycleS / INSPECT_PACE.taktS) * 100);
+  return (
+    <Panel title={L({ en: "Process Pulse", th: "สัญญาณกระบวนการปัจจุบัน" })} sub={L({ en: "catch a line drifting before scrap escapes — statistical, not AI", th: "จับไลน์ที่กำลังเพี้ยนก่อนของเสียหลุด — สัญญาณเชิงสถิติ ไม่ใช่ AI" })} extra={<span className="chip text-emerald-300"><span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 align-middle" />{L({ en: "live", th: "ขณะนี้" })}</span>}>
+      {breach ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-rose-400/30 bg-rose-500/[0.08] px-3.5 py-2.5">
+          <AlertTriangle size={16} className="shrink-0 text-rose-300" />
+          <p className="min-w-0 flex-1 text-[12.5px] leading-snug text-white/80">
+            <b className="text-rose-300">{critLine.line}</b> · {L({ en: `reject rate ${latest}% (${ratio}× baseline) — ${over} windows in a row above UCL ${RR_UCL}%`, th: `อัตราคัดออกล่าสุด ${latest}% (${ratio}× ของฐาน) — ${over} ช่วงติดกันเกินเส้นควบคุม UCL ${RR_UCL}%` })} · <span className="text-white/55">{L({ en: `hotspot ${topMachine.machine} (${topMachine.count} pcs today)`, th: `จุดร้อน ${topMachine.machine} (${topMachine.count} ชิ้นวันนี้)` })}</span>
+          </p>
+          <button onClick={onInvestigate} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-brand-400/40 bg-brand-400/10 px-2.5 py-1 text-[11.5px] font-medium text-brand-200 transition hover:bg-brand-400/20">{L({ en: "Find the cause in AI Analysis", th: "ดูต้นตอใน AI Analysis" })} <ArrowRight size={12} /></button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-500/[0.06] px-3.5 py-2.5 text-[12.5px] text-emerald-200"><Check size={15} /> {L({ en: "All lines within control limits", th: "ทุกไลน์อยู่ในเส้นควบคุม" })}</div>
+      )}
 
-/* ══════════════════════════ tab · MONITOR ══════════════════════════ */
-function MonitorView({ L }: { L: Tr }) {
-  const passed = inspectedToday - defectsToday;
-  // one breakdown card, four lenses — every lens re-reads the same 380-piece ledger
+      <div className="mt-3.5 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+        <div>
+          <div className="mb-1 flex items-center justify-between text-[11px] text-white/45">
+            <span>{L({ en: "Reject rate · 5-min windows · last 2 h", th: "อัตราคัดออก · จุดละ 5 นาที · 2 ชม.ล่าสุด" })}</span>
+            <span>{L({ en: "latest", th: "ล่าสุด" })} <b className="tabular" style={{ color: breach ? "var(--c-rose)" : PURPLE }}>{latest}%</b></span>
+          </div>
+          <RejectRateSPC data={RR_WINDOWS} baseline={RR_BASELINE} ucl={RR_UCL} L={L} />
+          <p className="mt-1 flex items-center gap-1.5 text-[10px] text-white/40"><span className="h-1.5 w-1.5 rounded-full bg-rose-400" /> {L({ en: "red points = out of control (above UCL)", th: "จุดแดง = หลุดควบคุม (เกินเส้น UCL)" })}</p>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 lg:grid-cols-1 lg:gap-2.5">
+          <PaceStat label={L({ en: "Throughput", th: "อัตราการตรวจ" })} value={`${INSPECT_PACE.partsMin}`} unit={L({ en: `pcs/min · of ${INSPECT_PACE.capacityMin}`, th: `ชิ้น/นาที · จาก ${INSPECT_PACE.capacityMin}` })} color="#22d3ee" />
+          <PaceStat label={L({ en: "Cycle time", th: "รอบต่อชิ้น" })} value={`${INSPECT_PACE.cycleS}`} unit={L({ en: "s/pc", th: "วิ/ชิ้น" })} color={PURPLE} />
+          <div className="rounded-lg border border-white/8 bg-white/[0.02] px-2.5 py-2">
+            <p className="text-[10px] text-white/45">{L({ en: "QC gate vs line takt", th: "ด่าน QC เทียบจังหวะสาย" })}</p>
+            <p className="tabular text-[15px] font-semibold" style={{ color: util <= 100 ? "var(--c-emerald)" : "var(--c-amber-strong)" }}>{util}% <span className="text-[10px] font-normal text-white/45">{util <= 100 ? L({ en: "keeping up", th: "ตามทัน" }) : L({ en: "behind", th: "ตามไม่ทัน" })}</span></p>
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full" style={{ width: `${Math.min(util, 100)}%`, background: util <= 100 ? "#34d399" : "#f59e0b" }} /></div>
+          </div>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+/* ══════════════ shared defect analytics — aggregated views (Insight, not live) ══════════════ */
+/** Type × line concentration — where defects cluster over the shift. Aggregated → belongs in Insight. */
+function DefectHeatmapPanel({ L }: { L: Tr }) {
+  return (
+    <Panel title={L({ en: "Defect Heatmap", th: "ฮีทแมปดีเฟกต์" })} sub={L({ en: "type × line · darker = more concentrated — see where problems cluster at a glance", th: "ชนิด × ไลน์ · สีเข้ม = หนาแน่น — เห็นทันทีว่าปัญหากระจุกอยู่ที่ไหน" })}>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead><tr className="text-left text-[11px] uppercase tracking-wider text-white/40">
+            <th className="px-2 py-2 font-medium">{L({ en: "Defect", th: "ดีเฟกต์" })}</th>
+            {["Line A", "Line B", "Line C"].map((ln) => <th key={ln} className="px-2 py-2 text-center font-medium">{ln}</th>)}
+            <th className="px-2 py-2 text-right font-medium">{L({ en: "Total", th: "รวม" })}</th>
+          </tr></thead>
+          <tbody>
+            {[...defects].sort((a, b) => b.count - a.count).map((d) => {
+              const maxC = Math.max(...defects.map((x) => x.count));
+              return (
+                <tr key={d.id} className="border-t border-white/5">
+                  <td className="max-w-[130px] truncate px-2 py-1.5 text-[12px] text-white/75">{L(d.name)}</td>
+                  {["Line A", "Line B", "Line C"].map((ln) => {
+                    const c = d.line === ln ? d.count : 0;
+                    return <td key={ln} className="px-1 py-1"><div className="rounded-md py-1 text-center tabular text-[12px]" style={c ? { backgroundColor: `rgba(244,63,94,${0.12 + (c / maxC) * 0.5})` } : undefined}>{c ? <span className="font-semibold text-white/90">{c}</span> : <span className="text-white/20">–</span>}</div></td>;
+                  })}
+                  <td className="px-2 py-1.5 text-right tabular text-[12px] font-semibold text-white/70">{d.count}</td>
+                </tr>
+              );
+            })}
+            <tr className="border-t border-white/10">
+              <td className="px-2 py-2 text-[11px] font-semibold text-white/50">{L({ en: "Total / line", th: "รวมต่อไลน์" })}</td>
+              {["Line A", "Line B", "Line C"].map((ln) => <td key={ln} className="px-2 py-2 text-center tabular text-[12px] font-semibold text-white/80">{defectByLine.find((x) => x.line === ln)?.count ?? 0}</td>)}
+              <td className="px-2 py-2 text-right tabular text-[12px] font-bold text-white/90">{defectsToday}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </Panel>
+  );
+}
+/** One card, four lenses (machine / shift / model / line) read as a Pareto. Aggregated → Insight. */
+function DefectBreakdownPanel({ L }: { L: Tr }) {
   const [lens, setLens] = useState<"machine" | "shift" | "product" | "line">("machine");
   const lensRows: Record<"machine" | "shift" | "product" | "line", { label: string; count: number; extra?: string }[]> = {
     machine: defectByMachine.map((m) => ({ label: m.machine, count: m.count })),
@@ -303,15 +493,236 @@ function MonitorView({ L }: { L: Tr }) {
   let cumAcc = 0;
   const pareto = lensRows[lens].map((r) => { cumAcc += r.count; return { ...r, cum: Math.round((cumAcc / lensTotal) * 100) }; });
   const n80 = pareto.findIndex((r) => r.cum >= 80) + 1;
+  return (
+    <Panel title={L({ en: "Defect Breakdown", th: "เจาะดีเฟกต์ตามมุมมอง" })} sub={L({ en: "pick a lens · the top offender of every dimension at a glance — tap one to see its Pareto", th: "ตัวการอันดับหนึ่งของทุกมิติ — กดเพื่อดู Pareto ของมิตินั้น" })}>
+      <div className="grid grid-cols-2 gap-2">
+        {LENSES.map((dm) => { const on = lens === dm.id; const top = lensRows[dm.id][0]; return (
+          <button key={dm.id} onClick={() => setLens(dm.id)} className={cn("rounded-lg border px-2.5 py-2 text-left transition", on ? "border-brand-400/50 bg-brand-400/10" : "border-white/10 bg-white/[0.02] hover:bg-white/[0.05]")}>
+            <p className="text-[9px] font-semibold uppercase tracking-wider text-white/40">{L(dm.name)}</p>
+            <p className={cn("truncate text-[12px] font-semibold", on ? "text-brand-200" : "text-white/80")}>{top.label}</p>
+            <p className="tabular text-[10px] text-white/45">{top.count} {L({ en: "pcs", th: "ชิ้น" })}</p>
+          </button>
+        ); })}
+      </div>
+      <motion.div key={lens} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className="mt-3.5 space-y-2">
+        {pareto.map((r, i) => { const inCore = i < n80; return (
+          <div key={r.label} className="flex items-center gap-2.5">
+            <span className="w-24 shrink-0 break-words leading-tight text-[12px] text-white/70">{r.label}</span>
+            <div className="h-3 flex-1 overflow-hidden rounded-full bg-white/8"><div className="h-full rounded-full" style={{ width: `${(r.count / pareto[0].count) * 100}%`, backgroundColor: inCore ? "#f43f5e" : "#64748b" }} /></div>
+            <span className="w-8 shrink-0 text-right tabular text-[12px] font-semibold text-white/75">{r.count}</span>
+            <span className="w-10 shrink-0 text-right tabular text-[10px] text-white/40">{r.cum}%</span>
+            {lens === "line" ? <span className="w-11 shrink-0 text-right tabular text-[10px] text-white/40">{r.extra}</span> : null}
+          </div>
+        ); })}
+      </motion.div>
+      <p className="mt-3 rounded-lg border border-rose-400/15 bg-rose-500/[0.05] px-2.5 py-2 text-[11px] leading-relaxed text-white/60">
+        {L({ en: `Fix the top ${n80} (red) → covers ${pareto[n80 - 1]?.cum ?? 100}% of all defects — the 80/20 rule at work`, th: `แก้ ${n80} อันดับแรก (สีแดง) = ครอบ ${pareto[n80 - 1]?.cum ?? 100}% ของดีเฟกต์ทั้งหมด — กฎ 80/20 ทำงานตรงนี้` })}
+      </p>
+    </Panel>
+  );
+}
+
+/** KPIs read against their quality goals — is this good, and how big is the gap? Descriptive. */
+function QualityScorecard({ L }: { L: Tr }) {
+  const rows = [
+    {
+      label: L({ en: "First pass yield", th: "ผ่านครั้งแรก (FPY)" }), cur: fpy, target: QUALITY_TARGETS.fpy, hi: true,
+      fmt: (v: number) => `${v}%`, gap: L({ en: `${(QUALITY_TARGETS.fpy - fpy).toFixed(1)}pp below`, th: `ต่ำกว่าเป้า ${(QUALITY_TARGETS.fpy - fpy).toFixed(1)}pp` }),
+    },
+    {
+      label: L({ en: "Defect rate", th: "อัตราดีเฟกต์" }), cur: defectRatePpm, target: QUALITY_TARGETS.defectPpm, hi: false,
+      fmt: (v: number) => `${v.toLocaleString()} ppm`, gap: L({ en: `${(defectRatePpm - QUALITY_TARGETS.defectPpm).toLocaleString()} over`, th: `เกินเป้า ${(defectRatePpm - QUALITY_TARGETS.defectPpm).toLocaleString()}` }),
+    },
+    {
+      label: L({ en: "COPQ / day", th: "ต้นทุนคุณภาพ/วัน" }), cur: copq.today, target: QUALITY_TARGETS.copqDay, hi: false,
+      fmt: (v: number) => thbCompact(v), gap: L({ en: `${thbCompact(copq.today - QUALITY_TARGETS.copqDay)} over`, th: `เกินเป้า ${thbCompact(copq.today - QUALITY_TARGETS.copqDay)}` }),
+    },
+  ];
+  return (
+    <Panel title={L({ en: "Scorecard vs Target", th: "สกอร์การ์ดเทียบเป้า" })} sub={L({ en: "how far each metric sits from its quality goal", th: "แต่ละตัวห่างเป้าคุณภาพแค่ไหน" })}>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {rows.map((r, i) => { const ok = r.hi ? r.cur >= r.target : r.cur <= r.target; return (
+          <div key={i} className="rounded-xl border border-white/8 bg-white/[0.02] p-3.5">
+            <p className="text-[11px] text-white/50">{r.label}</p>
+            <p className="tabular mt-1 text-[22px] font-semibold" style={{ color: ok ? "var(--c-emerald)" : "var(--c-rose)" }}>{r.fmt(r.cur)}</p>
+            <p className="text-[10.5px] text-white/40">{L({ en: "target", th: "เป้า" })} {r.fmt(r.target)}</p>
+            <span className={cn("mt-2 inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium", ok ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300" : "border-rose-400/30 bg-rose-400/10 text-rose-300")}>{ok ? L({ en: "on target", th: "ถึงเป้า" }) : r.gap}</span>
+          </div>
+        ); })}
+      </div>
+    </Panel>
+  );
+}
+/** Where today's quality cost actually goes — most of it hidden from finance. Data-driven. */
+function CopqBreakdownPanel({ L }: { L: Tr }) {
+  const max = Math.max(...copqBreakdown.map((c) => c.value));
+  const hiddenPct = Math.round((copq.invisible / copq.today) * 100);
+  return (
+    <Panel title={L({ en: "Cost of Poor Quality", th: "ต้นทุนคุณภาพที่รั่วไหล" })} sub={L({ en: "where today's quality cost goes — most of it hidden from finance", th: "เงินคุณภาพวันนี้รั่วไปไหน — ส่วนใหญ่ไม่โผล่ในบัญชี" })}>
+      <div className="flex items-baseline justify-between">
+        <span className="text-[12px] text-white/55">{L({ en: "Total today", th: "รวมวันนี้" })} <b className="tabular text-[15px] text-white/90">{thbCompact(copq.today)}</b></span>
+        <span className="text-[11px] text-white/45">{L({ en: "visible", th: "เห็นในบัญชี" })} {thbCompact(copq.visible)} · {L({ en: "hidden", th: "ซ่อน" })} <b className="text-rose-300">{thbCompact(copq.invisible)}</b></span>
+      </div>
+      <div className="mt-2 flex h-2.5 overflow-hidden rounded-full bg-white/8">
+        <div style={{ width: `${(copq.visible / copq.today) * 100}%`, background: "#64748b" }} title="visible" />
+        <div style={{ width: `${(copq.invisible / copq.today) * 100}%`, background: "#f43f5e" }} title="hidden" />
+      </div>
+      <div className="mt-4 space-y-2.5">
+        {copqBreakdown.map((c) => (
+          <div key={L(c.label)} className="flex items-center gap-2.5">
+            <span className="w-28 shrink-0 break-words leading-tight text-[12px] text-white/70">{L(c.label)}</span>
+            <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/8"><div className="h-full rounded-full" style={{ width: `${(c.value / max) * 100}%`, background: c.visible ? "#64748b" : "#f43f5e" }} /></div>
+            <span className="w-12 shrink-0 text-right tabular text-[12px] font-semibold text-white/80">{thbCompact(c.value)}</span>
+            <span className={cn("w-10 shrink-0 text-right text-[10px]", c.visible ? "text-white/40" : "text-rose-300/70")}>{c.visible ? L({ en: "seen", th: "เห็น" }) : L({ en: "hidden", th: "ซ่อน" })}</span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 rounded-lg border border-rose-400/15 bg-rose-500/[0.05] px-2.5 py-2 text-[11px] leading-relaxed text-white/60">
+        {L({ en: `Only ${thbCompact(copq.visible)} shows on the books — the other ${hiddenPct}% is rework, downtime & claims that stay hidden`, th: `มีแค่ ${thbCompact(copq.visible)} ที่โผล่ในบัญชี — อีก ${hiddenPct}% เป็นงานแก้/หยุดสาย/เคลม ที่ซ่อนอยู่` })}
+      </p>
+    </Panel>
+  );
+}
+/** When defects happen across the day — spikes cluster on shift edges / changeovers. */
+function DefectTimingPanel({ L }: { L: Tr }) {
+  const max = Math.max(...DEFECT_BY_HOUR);
+  const peak = DEFECT_BY_HOUR.indexOf(max);
+  return (
+    <Panel title={L({ en: "When Defects Happen", th: "ดีเฟกต์เกิดตอนไหน" })} sub={L({ en: "defects by hour today — spikes cluster on shift changes", th: "ดีเฟกต์รายชั่วโมงวันนี้ — พีคเกาะช่วงเปลี่ยนกะ/เปลี่ยนรุ่น" })}>
+      <div className="flex h-32 items-end gap-[3px]">
+        {DEFECT_BY_HOUR.map((v, h) => { const hot = v >= max * 0.85; const shiftEdge = h === 6 || h === 14 || h === 22; return (
+          <div key={h} className="flex h-full flex-1 items-end">
+            <div className="w-full rounded-t" style={{ height: `${Math.max((v / max) * 100, 3)}%`, background: hot ? "#f43f5e" : shiftEdge ? "#f59e0b" : PURPLE, opacity: hot ? 0.95 : 0.8 }} title={`${String(h).padStart(2, "0")}:00 · ${v}`} />
+          </div>
+        ); })}
+      </div>
+      <div className="mt-1.5 flex justify-between text-[9px] text-white/35">
+        {["00:00", "06:00", "12:00", "18:00", "23:00"].map((t) => <span key={t}>{t}</span>)}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-white/45">
+        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-rose-400" /> {L({ en: "peak", th: "พีค" })}</span>
+        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-amber-400" /> {L({ en: "shift change", th: "เปลี่ยนกะ" })}</span>
+      </div>
+      <p className="mt-2.5 rounded-lg border border-amber-400/15 bg-amber-500/[0.05] px-2.5 py-2 text-[11px] leading-relaxed text-white/60">
+        {L({ en: `Worst at ${String(peak).padStart(2, "0")}:00 — right on a shift change. Tighten first-off inspection at shift start and after every changeover.`, th: `หนักสุด ${String(peak).padStart(2, "0")}:00 — ตรงช่วงเปลี่ยนกะ/เปลี่ยนรุ่น ควรคุมตรวจชิ้นแรกให้แน่นตอนเปิดกะและหลังเปลี่ยนรุ่นทุกครั้ง` })}
+      </p>
+    </Panel>
+  );
+}
+
+/* ══════════════════════════ tab · OVERVIEW ══════════════════════════ */
+function OverviewView({ L, onAnalyze, onMonitor }: { L: Tr; onAnalyze: () => void; onMonitor: () => void }) {
+  const ranked = [...defects].sort((a, b) => defectCost(b) - defectCost(a)).slice(0, 5);
+  const maxCost = Math.max(...ranked.map(defectCost));
+  // trend pair — one coherent story: defects creeping up (die wear) pulls FPY down
+  const fpyTrend = series(70, 16, { base: 60, amp: 6, trend: -4 });
+  const defTrend = fpyTrend.map((v) => 120 - v);
+  return (
+    <div className="space-y-6">
+      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <KpiCard label={L({ en: "Quality health score", th: "คะแนนคุณภาพรวม" })} value={`${qualityHealthScore}`} unit="/100" delta={L({ en: "watch", th: "เฝ้าระวัง" })} deltaGood={false} accent={PURPLE} />
+        <KpiCard label={L({ en: "First pass yield", th: "ผ่านครั้งแรก (FPY)" })} value={`${fpy}`} unit="%" delta={`-0.3pp · ${L({ en: "slipping", th: "กำลังย่อ" })}`} deltaGood={false} accent="#34d399" spark={series(71, 16, { base: 55, amp: 5, trend: -3 })} />
+        <KpiCard label={L({ en: "Defect rate", th: "อัตราดีเฟกต์" })} value={defectRatePpm.toLocaleString()} unit="ppm" delta={L({ en: "rising", th: "กำลังเพิ่ม" })} deltaGood={false} accent="#f59e0b" spark={series(72, 16, { base: 48, amp: 6, trend: 6 })} />
+        <KpiCard label={L({ en: "COPQ · today", th: "ต้นทุนคุณภาพ · วันนี้" })} value={thbCompact(copq.today)} delta={`${thbCompact(copq.invisible)} ${L({ en: "hidden", th: "ซ่อนอยู่" })}`} deltaGood={false} accent="#f43f5e" />
+      </section>
+
+      <QualityScorecard L={L} />
+
+      <section className="grid gap-6 lg:grid-cols-[260px_1fr]">
+        <div className="flex flex-col gap-6">
+          {/* how trustworthy the inspection system itself is */}
+          <Panel className="flex flex-col items-center text-center">
+            <p className="text-[11px] uppercase tracking-wider text-white/45">{L({ en: "Inspection health", th: "สุขภาพระบบตรวจ" })}</p>
+            <div className="mt-2"><Ring value={inspectionHealth.score} size={96} /></div>
+            <div className="mt-2.5 w-full space-y-1 text-left">
+              <div className="flex items-center justify-between text-[11px]"><span className="text-white/50">{L({ en: "Cameras healthy", th: "กล้องปกติ" })}</span><span className={cn("tabular font-semibold", inspectionHealth.okCams < inspectionHealth.totalCams ? "text-amber-300" : "text-emerald-300")}>{inspectionHealth.okCams}/{inspectionHealth.totalCams}</span></div>
+              <div className="flex items-center justify-between text-[11px]"><span className="text-white/50">{L({ en: "Avg camera accuracy", th: "ความแม่นกล้องเฉลี่ย" })}</span><span className="tabular font-semibold text-white/80">{inspectionHealth.avgAcc}%</span></div>
+              <div className="flex items-center justify-between text-[11px]"><span className="text-white/50">{L({ en: "AI confidence", th: "ความมั่นใจ AI" })}</span><span className="tabular font-semibold text-white/80">{modelConfidence}%</span></div>
+            </div>
+            <button onClick={onMonitor} className="btn-ghost mt-2.5 w-full justify-center py-1.5 text-[11px]">{L({ en: "See each camera", th: "ดูรายกล้อง" })} <ArrowRight size={11} /></button>
+          </Panel>
+
+          {/* line-by-line health from today's ledger */}
+          <Panel>
+            <p className="text-[11px] uppercase tracking-wider text-white/45">{L({ en: "Line health · today", th: "สุขภาพรายไลน์ · วันนี้" })}</p>
+            <div className="mt-2.5 space-y-2">
+              {lineHealth.map((l) => { const hex = l.tone === "crit" ? "#f43f5e" : l.tone === "warn" ? "#f59e0b" : "#34d399"; const txt = l.tone === "crit" ? "var(--c-rose)" : l.tone === "warn" ? "var(--c-amber-strong)" : "var(--c-emerald)"; const lbl: LZ = l.tone === "crit" ? { en: "act now", th: "ต้องจัดการ" } : l.tone === "warn" ? { en: "watch", th: "เฝ้าระวัง" } : { en: "good", th: "ดี" }; return (
+                <div key={l.line} className="rounded-lg border border-white/8 bg-white/[0.02] px-2.5 py-2">
+                  <div className="flex items-center justify-between"><span className="flex items-center gap-1.5 text-[12px] font-medium text-white/85"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: hex }} />{l.line}</span><span className="text-[10px] font-semibold" style={{ color: txt }}>{L(lbl)}</span></div>
+                  <p className="mt-0.5 tabular text-[10px] text-white/45">{thbCompact(l.costTHB)}/{L({ en: "d", th: "วัน" })} · {l.count} {L({ en: "pcs", th: "ชิ้น" })}</p>
+                </div>
+              ); })}
+            </div>
+          </Panel>
+        </div>
+        <Panel title={L({ en: "Top Critical Defects", th: "ดีเฟกต์วิกฤตสูงสุด" })} sub={L({ en: "ranked by how much money each one is costing today", th: "เรียงตามเงินที่ทำให้เสียไปวันนี้" })}>
+          <ul className="space-y-2.5">
+            {ranked.map((d) => (
+              <li key={d.id} className="flex items-center gap-3">
+                <div className="min-w-0 flex-1"><div className="flex items-center justify-between text-[13px]"><span className="truncate font-medium text-white/85">{L(d.name)}</span><span className="shrink-0 tabular text-white/50">{d.count} · {L({ en: "on", th: "ที่" })} {d.machine}</span></div>
+                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-white/8"><div className="h-full rounded-full" style={{ width: `${(defectCost(d) / maxCost) * 100}%`, backgroundColor: PURPLE }} /></div>
+                </div>
+                <span className="w-16 shrink-0 text-right tabular text-[13px] font-semibold text-rose-300">{thbCompact(defectCost(d))}</span>
+              </li>
+            ))}
+          </ul>
+
+          {/* quality trend — fills the space under the list, same story continued */}
+          <div className="mt-5 border-t border-white/8 pt-4">
+            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h4 className="text-[13px] font-semibold">{L({ en: "Production Quality Trend", th: "เทรนด์คุณภาพการผลิต" })}</h4>
+                <p className="text-[10px] text-white/40">{L({ en: "FPY vs defect rate · last 16 shifts", th: "FPY เทียบอัตราดีเฟกต์ · 16 กะล่าสุด" })}</p>
+              </div>
+              <span className="flex items-center gap-3 text-[10px] text-white/50">
+                <span className="flex items-center gap-1"><span className="h-0.5 w-4 rounded-full bg-emerald-400" /> FPY</span>
+                <span className="flex items-center gap-1"><span className="h-0.5 w-4 rounded-full bg-rose-400" /> {L({ en: "defect rate", th: "อัตราดีเฟกต์" })}</span>
+              </span>
+            </div>
+            <AreaTrend data={fpyTrend} color="#34d399" data2={defTrend} color2="#f43f5e" />
+            <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-white/40"><span className="shrink-0">{L({ en: "16 shifts ago", th: "16 กะก่อน" })}</span><span className="min-w-0 truncate text-center" style={{ color: "var(--c-rose)" }}>{L({ en: "defects creeping up lately — the die-wear signature", th: "ดีเฟกต์ไต่ขึ้นช่วงหลัง — ลายเซ็นดายสึก" })}</span><span className="shrink-0">{L({ en: "now", th: "ตอนนี้" })}</span></div>
+          </div>
+        </Panel>
+      </section>
+
+      {/* where defects concentrate — aggregated views that guide "what to fix first" */}
+      <section className="grid gap-6 lg:grid-cols-[1.3fr_1fr] lg:items-stretch">
+        <DefectHeatmapPanel L={L} />
+        <DefectBreakdownPanel L={L} />
+      </section>
+
+      {/* the money angle + the timing angle — turns "where" into "how much" and "when" */}
+      <section className="grid gap-6 lg:grid-cols-2 lg:items-start">
+        <CopqBreakdownPanel L={L} />
+        <DefectTimingPanel L={L} />
+      </section>
+
+      {/* forward CTA — Insight stays descriptive; the "why" (AI) lives in the next step */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-white">{L({ en: "Ready to find the root cause?", th: "พร้อมหาต้นตอแล้วหรือยัง?" })}</p>
+          <p className="mt-0.5 text-[12px] leading-relaxed text-white/50">{L({ en: "the 80/20 view above points to the few defects worth fixing first — let AI Analysis pin down why", th: "ภาพ 80/20 ด้านบนชี้ดีเฟกต์ไม่กี่ตัวที่ควรแก้ก่อน — ให้ AI Analysis เจาะต่อว่าทำไม" })}</p>
+        </div>
+        <button onClick={onAnalyze} className="btn-glow shrink-0 px-4 py-2.5 text-sm">{L({ en: "Next · AI Analysis", th: "ขั้นถัดไป · AI Analysis" })} <ArrowRight size={15} /></button>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════ tab · MONITOR ══════════════════════════ */
+function MonitorView({ L, onInvestigate }: { L: Tr; onInvestigate: () => void }) {
+  const passed = inspectedToday - defectsToday;
   // filter the timeline by camera — chips show what each camera caught
   const [camFilter, setCamFilter] = useState<string>("all");
   const rows = detections.filter((d) => camFilter === "all" || d.station === camFilter);
   const camChips = cameraRig.map((c) => ({ id: c.id, pos: c.pos, n: detections.filter((d) => d.station === c.id).length }));
   return (
     <div className="space-y-6">
-      <Panel title={L({ en: "Live inspection · V-B1 AI QC gate", th: "ตรวจสด · V-B1 ด่านตรวจ AI ปลายไลน์" })} sub={L({ en: "3× OMRON STC-HD213DV — every finished part passes this gate, captured from top, left & right", th: "OMRON STC-HD213DV 3 ตัว — ชิ้นงานทุกชิ้นวิ่งผ่านด่านนี้ ถ่ายพร้อมกันจากมุมบน ซ้าย ขวา" })} extra={<span className="chip text-emerald-300"><span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 align-middle" />{L({ en: "streaming", th: "สตรีมสด" })}</span>}>
+      <Panel title={L({ en: "Live Inspection", th: "ตรวจเรียลไทม์" })} sub={L({ en: "V-B1 AI QC gate · 3× OMRON STC-HD213DV — every finished part passes this gate, captured from top, left & right", th: "V-B1 ด่านตรวจ AI ปลายไลน์ · OMRON STC-HD213DV 3 ตัว — ชิ้นงานทุกชิ้นวิ่งผ่านด่านนี้ ถ่ายพร้อมกันจากมุมบน ซ้าย ขวา" })} extra={<span className="chip text-emerald-300"><span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 align-middle" />{L({ en: "streaming", th: "กำลังสตรีม" })}</span>}>
         <MultiCameraInspection L={L} />
       </Panel>
+
+      <ProcessPulse L={L} onInvestigate={onInvestigate} />
 
       <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div className="panel p-4 text-center"><p className="text-[11px] text-white/45">{L({ en: "Passed · today", th: "ผ่าน · วันนี้" })}</p><p className="mt-1 tabular text-2xl font-semibold text-emerald-300">{passed.toLocaleString()}</p></div>
@@ -320,7 +731,7 @@ function MonitorView({ L }: { L: Tr }) {
         <div className="panel p-4 text-center"><p className="text-[11px] text-white/45">{L({ en: "Escapes", th: "หลุดรอด" })}</p><p className="mt-1 tabular text-2xl font-semibold text-emerald-300">{escapes}</p><p className="text-[10px] text-white/35">{daysClean}{L({ en: "d clean", th: " วันไม่มีหลุด" })}</p></div>
       </section>
 
-      <Panel title={L({ en: "Camera status", th: "สถานะกล้อง" })} sub={`${L({ en: `${stations.length} edge cameras`, th: `กล้อง edge ${stations.length} ตัว` })} · OMRON STC-HD213DV ×${stations.length} · ${L({ en: "AI inference on-device", th: "ประมวลผล AI บนอุปกรณ์" })}`} extra={
+      <Panel title={L({ en: "Camera Status", th: "สถานะกล้อง" })} sub={L({ en: "Which cameras can still be trusted", th: "กล้องตัวไหนยังเชื่อถือได้" })} extra={
         <span className="flex items-center gap-2">
           <span className="chip text-emerald-300">{stations.filter((s) => s.status === "ok").length} {L({ en: "healthy", th: "ปกติ" })}</span>
           <span className="chip border-status-warn/30 bg-status-warn/10 text-amber-300">{stations.filter((s) => s.status === "warn").length} {L({ en: "watch", th: "เฝ้าระวัง" })}</span>
@@ -341,7 +752,7 @@ function MonitorView({ L }: { L: Tr }) {
       <section className="panel overflow-hidden p-0">
         <div className="flex flex-wrap items-center gap-2 border-b border-white/10 p-5">
           <Activity size={18} className="shrink-0 text-purple-300" />
-          <div className="min-w-0"><h3 className="font-semibold">{L({ en: "Inspection timeline", th: "ไทม์ไลน์การตรวจ" })}</h3><p className="mt-0.5 text-xs text-white/45">{L({ en: "auto-diverted before leaving the line", th: "คัดออกอัตโนมัติก่อนหลุดสาย" })}</p></div>
+          <div className="min-w-0"><h3 className="font-semibold">{L({ en: "Inspection Timeline", th: "ไทม์ไลน์การตรวจ" })}</h3><p className="mt-0.5 text-xs text-white/45">{L({ en: "auto-diverted before leaving the line", th: "คัดออกอัตโนมัติก่อนหลุดสาย" })}</p></div>
           {/* camera filter chips — which camera caught what */}
           <div className="ml-auto flex flex-wrap items-center gap-0.5 rounded-lg border border-white/10 bg-white/[0.02] p-0.5">
             <button onClick={() => setCamFilter("all")} className={cn("whitespace-nowrap rounded-md px-2.5 py-1 text-[12px] font-medium transition", camFilter === "all" ? "bg-white/10 text-white/90" : "text-white/45 hover:text-white/70")}>{L({ en: "All", th: "ทั้งหมด" })} <span className="tabular text-white/35">{detections.length}</span></button>
@@ -358,71 +769,6 @@ function MonitorView({ L }: { L: Tr }) {
             <tr key={i} className="border-t border-white/5 hover:bg-white/[0.02]"><td className="px-5 py-2.5 tabular text-white/60">{d.at}</td><td className="px-3 py-2.5"><button onClick={() => setCamFilter(d.station)} className="inline-flex items-center gap-1.5 rounded-md bg-white/[0.04] px-2 py-0.5 text-[12px] tabular text-white/70 transition hover:bg-white/[0.08] hover:text-white/90">{d.station}{cam ? <span className="text-[10px] text-white/40">· {L(cam.pos)}</span> : null}</button></td><td className="px-3 py-2.5 font-medium">{L(d.defect)}</td><td className="px-3 py-2.5 tabular text-purple-300">{d.conf}%</td><td className="px-5 py-2.5 text-right"><span className={cn("inline-flex items-center gap-1.5 text-xs", d.reject ? "text-rose-300" : "text-white/60")}>{d.reject ? <AlertTriangle size={12} /> : <Check size={12} className="text-emerald-300" />}{L(d.action)}</span></td></tr>
           ); })}</tbody>
         </table></div>
-      </section>
-
-      {/* where defects concentrate — type × line, plus product & line breakdowns */}
-      <section className="grid gap-6 lg:grid-cols-[1.3fr_1fr] lg:items-start">
-        <Panel title={L({ en: "Defect heatmap · type × line", th: "ฮีทแมปดีเฟกต์ · ชนิด × ไลน์" })} sub={L({ en: "darker = more concentrated — see where problems cluster at a glance", th: "สีเข้ม = หนาแน่น — เห็นทันทีว่าปัญหากระจุกอยู่ที่ไหน" })}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="text-left text-[11px] uppercase tracking-wider text-white/40">
-                <th className="px-2 py-2 font-medium">{L({ en: "Defect", th: "ดีเฟกต์" })}</th>
-                {["Line A", "Line B", "Line C"].map((ln) => <th key={ln} className="px-2 py-2 text-center font-medium">{ln}</th>)}
-                <th className="px-2 py-2 text-right font-medium">{L({ en: "Total", th: "รวม" })}</th>
-              </tr></thead>
-              <tbody>
-                {[...defects].sort((a, b) => b.count - a.count).map((d) => {
-                  const maxC = Math.max(...defects.map((x) => x.count));
-                  return (
-                    <tr key={d.id} className="border-t border-white/5">
-                      <td className="max-w-[130px] truncate px-2 py-1.5 text-[12px] text-white/75">{L(d.name)}</td>
-                      {["Line A", "Line B", "Line C"].map((ln) => {
-                        const c = d.line === ln ? d.count : 0;
-                        return <td key={ln} className="px-1 py-1"><div className="rounded-md py-1 text-center tabular text-[12px]" style={c ? { backgroundColor: `rgba(244,63,94,${0.12 + (c / maxC) * 0.5})` } : undefined}>{c ? <span className="font-semibold text-white/90">{c}</span> : <span className="text-white/20">–</span>}</div></td>;
-                      })}
-                      <td className="px-2 py-1.5 text-right tabular text-[12px] font-semibold text-white/70">{d.count}</td>
-                    </tr>
-                  );
-                })}
-                <tr className="border-t border-white/10">
-                  <td className="px-2 py-2 text-[11px] font-semibold text-white/50">{L({ en: "Total / line", th: "รวมต่อไลน์" })}</td>
-                  {["Line A", "Line B", "Line C"].map((ln) => <td key={ln} className="px-2 py-2 text-center tabular text-[12px] font-semibold text-white/80">{defectByLine.find((x) => x.line === ln)?.count ?? 0}</td>)}
-                  <td className="px-2 py-2 text-right tabular text-[12px] font-bold text-white/90">{defectsToday}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </Panel>
-
-        {/* one card, four lenses — chips pick the dimension, bars read as a Pareto */}
-        <Panel title={L({ en: "Defect breakdown · pick a lens", th: "เจาะดีเฟกต์ตามมุมมอง" })} sub={L({ en: "the top offender of every dimension at a glance — tap one to see its Pareto", th: "ตัวการอันดับหนึ่งของทุกมิติ — กดเพื่อดู Pareto ของมิตินั้น" })}>
-          {/* the four top offenders double as the dimension selector */}
-          <div className="grid grid-cols-2 gap-2">
-            {LENSES.map((dm) => { const on = lens === dm.id; const top = lensRows[dm.id][0]; return (
-              <button key={dm.id} onClick={() => setLens(dm.id)} className={cn("rounded-lg border px-2.5 py-2 text-left transition", on ? "border-brand-400/50 bg-brand-400/10" : "border-white/10 bg-white/[0.02] hover:bg-white/[0.05]")}>
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-white/40">{L(dm.name)}</p>
-                <p className={cn("truncate text-[12px] font-semibold", on ? "text-brand-200" : "text-white/80")}>{top.label}</p>
-                <p className="tabular text-[10px] text-white/45">{top.count} {L({ en: "pcs", th: "ชิ้น" })}</p>
-              </button>
-            ); })}
-          </div>
-
-          {/* Pareto of the selected lens — red = the 80% group to fix first */}
-          <motion.div key={lens} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className="mt-3.5 space-y-2">
-            {pareto.map((r, i) => { const inCore = i < n80; return (
-              <div key={r.label} className="flex items-center gap-2.5">
-                <span className="w-24 shrink-0 truncate text-[12px] text-white/70">{r.label}</span>
-                <div className="h-3 flex-1 overflow-hidden rounded-full bg-white/8"><div className="h-full rounded-full" style={{ width: `${(r.count / pareto[0].count) * 100}%`, backgroundColor: inCore ? "#f43f5e" : "#64748b" }} /></div>
-                <span className="w-8 shrink-0 text-right tabular text-[12px] font-semibold text-white/75">{r.count}</span>
-                <span className="w-10 shrink-0 text-right tabular text-[10px] text-white/40">{r.cum}%</span>
-                {lens === "line" ? <span className="w-11 shrink-0 text-right tabular text-[10px] text-white/40">{r.extra}</span> : null}
-              </div>
-            ); })}
-          </motion.div>
-          <p className="mt-3 rounded-lg border border-rose-400/15 bg-rose-500/[0.05] px-2.5 py-2 text-[11px] leading-relaxed text-white/60">
-            {L({ en: `Fix the top ${n80} (red) → covers ${pareto[n80 - 1]?.cum ?? 100}% of all defects — the 80/20 rule at work`, th: `แก้ ${n80} อันดับแรก (สีแดง) = ครอบ ${pareto[n80 - 1]?.cum ?? 100}% ของดีเฟกต์ทั้งหมด — กฎ 80/20 ทำงานตรงนี้` })}
-          </p>
-        </Panel>
       </section>
     </div>
   );
@@ -524,8 +870,8 @@ function DefectLearning({ L }: { L: Tr }) {
   );
   return (
     <Panel
-      title={L({ en: "AI defect learning · pattern library", th: "AI เรียนรู้ดีเฟกต์ · คลังรูปแบบ" })}
-      sub={L({ en: "the model learns from labelled photos, auto-groups new ones — you name each class", th: "โมเดลเรียนรู้จากภาพที่ติดป้ายไว้ แล้วจัดกลุ่มภาพใหม่ให้เอง เหลือแค่คุณตั้งชื่อแต่ละกลุ่ม" })}
+      title={L({ en: "AI Defect Learning", th: "AI เรียนรู้ดีเฟกต์" })}
+      sub={L({ en: "pattern library · the model learns from labelled photos, auto-groups new ones — you name each class", th: "คลังรูปแบบ · โมเดลเรียนรู้จากภาพที่ติดป้ายไว้ แล้วจัดกลุ่มภาพใหม่ให้เอง เหลือแค่คุณตั้งชื่อแต่ละกลุ่ม" })}
       extra={<button onClick={() => openCopilot("Retrain the VisionIQ defect-classification model")} className="btn-ghost px-3 py-1.5 text-[12px]"><RefreshCw size={13} /> {L({ en: "Retrain", th: "เทรนใหม่" })}</button>}
     >
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
@@ -539,7 +885,7 @@ function DefectLearning({ L }: { L: Tr }) {
       <div className="mt-4 rounded-xl border border-brand-400/25 bg-brand-400/[0.05] p-4">
         <div className="mb-3 flex flex-wrap items-center gap-2.5">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-brand-400 to-accent-500 text-ink-950"><UploadCloud size={17} /></span>
-          <div className="min-w-0 flex-1"><p className="text-[13px] font-semibold text-white/90">{L({ en: "Teach the AI — upload sample images", th: "สอน AI — อัปโหลดภาพตัวอย่าง" })}</p><p className="text-[11px] text-white/50">{L({ en: "the more labelled samples you add, the more accurately it classifies", th: "ยิ่งป้อนตัวอย่างที่ติดป้ายมากเท่าไหร่ AI ยิ่งแ·แม่นขึ้น" })}</p></div>
+          <div className="min-w-0 flex-1"><p className="text-[13px] font-semibold text-white/90">{L({ en: "Teach the AI — upload sample images", th: "สอน AI — อัปโหลดภาพตัวอย่าง" })}</p><p className="text-[11px] text-white/50">{L({ en: "the more labelled samples you add, the more accurately it classifies", th: "ยิ่งป้อนตัวอย่างที่ติดป้ายมากเท่าไหร่ AI ยิ่งแยกแม่นขึ้น" })}</p></div>
           <div className="shrink-0 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-right">
             <p className="tabular text-[15px] font-semibold leading-tight text-white/90">{totalSamples.toLocaleString()} <span className="text-[10px] font-normal text-white/45">{L({ en: "images learned", th: "ภาพที่เรียนรู้แล้ว" })}</span></p>
             <p className="text-[10px] leading-tight" style={{ color: addedByUser > 0 ? "var(--c-emerald)" : undefined }}>{addedByUser > 0 ? `+${addedByUser} ${L({ en: "added by you", th: "ที่คุณเพิ่มวันนี้" })}` : <span className="text-white/35">{L({ en: `${classes.length} classes`, th: `${classes.length} คลาส` })}</span>}</p>
@@ -623,46 +969,6 @@ function DefectLearning({ L }: { L: Tr }) {
 }
 /** deviation measured by the top camera through the current Press 03 run — the
  *  monotonic creep is HOW the AI concludes "die wear" (vs setup error / material noise) */
-function DriftChart({ L }: { L: Tr }) {
-  const { toleranceMm, points } = dimDrift;
-  const W = 560, H = 190, PL = 48, PR = 16, PT = 18, PB = 32;
-  const yMax = 0.35;
-  const x = (i: number) => PL + (i / (points.length - 1)) * (W - PL - PR);
-  const y = (v: number) => H - PB - (v / yMax) * (H - PT - PB);
-  const line = points.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
-  const area = `${line} L${x(points.length - 1).toFixed(1)},${H - PB} L${PL},${H - PB} Z`;
-  const crossIdx = points.findIndex((v) => v > toleranceMm);
-  return (
-    <div className="rounded-xl border border-white/8 bg-white/[0.02] p-3">
-      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[11px] font-medium text-white/60">{L({ en: "Part size measured by the camera · the longer it runs, the bigger the parts", th: "ขนาดชิ้นงานที่กล้องวัดได้ · ยิ่งผลิตนาน ชิ้นงานยิ่งใหญ่ขึ้น" })}</p>
-        <p className="text-[10px] font-medium" style={{ color: "var(--c-rose)" }}>{L({ en: "growing little by little = the die is wearing", th: "โตขึ้นทีละนิดไม่หยุด = ดา·ำลังสึก" })}</p>
-      </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
-        <defs><linearGradient id="driftFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#c084fc" stopOpacity="0.18" /><stop offset="1" stopColor="#c084fc" stopOpacity="0" /></linearGradient></defs>
-        {/* faint horizontal guides */}
-        {[0.1, 0.2, 0.3].map((v) => <line key={v} x1={PL} x2={W - PR} y1={y(v)} y2={y(v)} stroke="rgba(120,130,150,0.15)" strokeWidth="1" />)}
-        {/* over-tolerance zone + line */}
-        <rect x={PL} y={PT} width={W - PL - PR} height={y(toleranceMm) - PT} fill="#f43f5e" opacity="0.07" />
-        <line x1={PL} x2={W - PR} y1={y(toleranceMm)} y2={y(toleranceMm)} stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="6 4" />
-        {/* labels — kept apart: threshold label sits LEFT (empty space), reject label top-RIGHT */}
-        <text x={PL + 4} y={y(toleranceMm) - 7} style={{ fontSize: 11.5, fill: "var(--c-amber-strong)", fontWeight: 600 }}>{L({ en: "over this line = bad part", th: "เกินเส้นนี้ = ของเสีย" })} (+{toleranceMm}mm)</text>
-        {crossIdx > 0 ? <text x={W - PR - 2} y={PT + 13} textAnchor="end" style={{ fontSize: 11.5, fill: "var(--c-rose)", fontWeight: 700 }}>{L({ en: "starts failing → rejected", th: "เริ่มเป็นของเสีย → ถูกคัดออก" })}</text> : null}
-        {/* axis labels */}
-        <text x={PL} y={H - 9} style={{ fontSize: 10.5, fill: "var(--muted)" }}>{L({ en: "first parts (after die service)", th: "ชิ้นแรกๆ (หลังซ่อมดายล่าสุด)" })}</text>
-        <text x={W - PR} y={H - 9} textAnchor="end" style={{ fontSize: 10.5, fill: "var(--muted)" }}>{L({ en: "latest part", th: "ชิ้นล่าสุด" })}</text>
-        <text x={PL - 6} y={y(0) + 4} textAnchor="end" style={{ fontSize: 10.5, fill: "var(--muted)" }}>0</text>
-        <text x={PL - 6} y={y(0.3) + 4} textAnchor="end" style={{ fontSize: 10.5, fill: "var(--muted)" }}>+0.3</text>
-        {/* measured creep */}
-        <path d={area} fill="url(#driftFill)" />
-        <path d={line} fill="none" stroke="#c084fc" strokeWidth="2.5" strokeLinecap="round" />
-        {points.map((v, i) => <circle key={i} cx={x(i)} cy={y(v)} r={i === points.length - 1 ? 5 : 3} fill={v > toleranceMm ? "#f43f5e" : "#c084fc"} stroke={i === points.length - 1 ? "#fff" : "none"} strokeWidth={i === points.length - 1 ? 1.5 : 0} />)}
-        {/* current value pinned below the last dot */}
-        <text x={x(points.length - 1) - 2} y={y(points[points.length - 1]) + 22} textAnchor="end" style={{ fontSize: 11.5, fill: "var(--c-rose)", fontWeight: 700 }}>+{points[points.length - 1]}mm</text>
-      </svg>
-    </div>
-  );
-}
 function AnalyzeView({ L, onAct }: { L: Tr; onAct: () => void }) {
   // every defect found today has its own analysis — pick one, worst ฿ first
   const [rcId, setRcId] = useState(rootCauses[0].defectId);
@@ -680,10 +986,39 @@ function AnalyzeView({ L, onAct }: { L: Tr; onAct: () => void }) {
     <div className="space-y-6">
       <div className="flex items-center gap-2 rounded-xl border border-brand-400/20 bg-brand-400/[0.05] px-4 py-2.5"><Brain size={16} className="shrink-0 text-brand-300" /><p className="text-[12px] font-medium text-brand-200">{L({ en: "The flagship AI — from one bad part, it tells you what caused it, how much it costs, and what to fix first.", th: "AI ตัวชูโรง — เจอของเสีย 1 ชิ้น บอกได้เลยว่าเกิดจากอะไร เสียเงินเท่าไหร่ และควรแก้ตรงไหนก่อน" })}</p></div>
 
+      {/* AI Verdict — the 5-second answer; every panel below is the depth behind it */}
+      <div className="panel relative overflow-hidden border-brand-400/25 bg-gradient-to-br from-brand-400/[0.08] to-transparent p-4">
+        <div className="flex flex-wrap items-start gap-3">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-400/15 text-brand-200"><Sparkles size={17} /></span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-300/80">{L({ en: "AI Verdict · fix this first", th: "AI สรุป · ควรแก้ตัวนี้ก่อน" })}</p>
+            <h3 className="mt-0.5 text-[15px] font-semibold leading-snug text-white/90">{L(rc.cause)}</h3>
+            <p className="mt-0.5 text-[12px] text-white/55">{L(rcDefect.name)} · {rcDefect.machine} · <span className={cn(rc.confidence >= 80 ? "text-emerald-300" : "text-amber-300")}>{L({ en: "confidence", th: "มั่นใจ" })} {rc.confidence}%</span></p>
+          </div>
+          <div className="shrink-0 text-right">
+            <p className="tabular text-[17px] font-semibold text-rose-300">{thbCompact(cost(rcDefect))}<span className="text-[11px] font-normal text-white/40">/{L({ en: "day", th: "วัน" })}</span></p>
+            <p className="text-[11px] text-white/45">{L({ en: "if ignored · risk", th: "ถ้าปล่อย เสี่ยง" })} {thbCompact(p.riskTHB)}</p>
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-400/25 bg-emerald-500/[0.06] px-3.5 py-2.5">
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-wider text-emerald-300/70">{L({ en: "The fix", th: "ทางแก้" })}</p>
+            <p className="truncate text-[13px] font-medium text-white/90">{L(rc.fix.label)}</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-3.5">
+            <div className="text-right">
+              <p className="tabular text-[14px] font-semibold text-emerald-300">{thbCompact(p.fixCost)}</p>
+              <p className="text-[10px] text-white/45">{L({ en: "cheaper", th: "ถูกกว่า" })} {Math.max(1, Math.round(p.riskTHB / Math.max(p.fixCost, 1)))}×</p>
+            </div>
+            <button onClick={onAct} className="btn-glow px-3.5 py-2 text-[12px]">{L({ en: "Fix plan", th: "ไปแผนแก้" })} <ArrowRight size={13} /></button>
+          </div>
+        </div>
+      </div>
+
       {/* Root cause — one analysis per defect found */}
       <Panel className="relative overflow-hidden">
         <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-status-crit/12 blur-3xl" />
-        <div className="flex items-center gap-2.5"><span className="grid h-9 w-9 place-items-center rounded-lg bg-rose-500/12 text-rose-300"><Radar size={18} /></span><div><h3 className="font-semibold">{L({ en: "AI root-cause analysis", th: "วิเคราะห์รากสาเหตุด้วย AI" })}</h3><p className="text-xs text-white/45">{L({ en: "every defect found today, analysed — pick one", th: "วิเคราะห์ครบทุกดีเฟกต์ที่เจอวันนี้ — เลือกดูได้เลย" })}</p></div><button onClick={() => setEditCosts((v) => !v)} className={cn("ml-auto flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition", editCosts ? "border-amber-400/40 bg-amber-500/10 text-amber-300" : "border-white/12 bg-white/[0.03] text-white/60 hover:text-white/85")}><Pencil size={12} /> {L({ en: "Edit costs", th: "แก้ต้นทุน" })}</button><span className="rounded-md bg-rose-500/15 px-2 py-1 text-[12px] font-semibold text-rose-300">{thbCompact(cost(rcDefect))}/{L({ en: "day", th: "วัน" })}</span></div>
+        <div className="flex items-center gap-2.5"><span className="grid h-9 w-9 place-items-center rounded-lg bg-rose-500/12 text-rose-300"><Radar size={18} /></span><div><h3 className="font-semibold">{L({ en: "AI Root-Cause Analysis", th: "วิเคราะห์รากสาเหตุด้วย AI" })}</h3><p className="text-xs text-white/45">{L({ en: "every defect found today, analysed — pick one", th: "วิเคราะห์ครบทุกดีเฟกต์ที่เจอวันนี้ — เลือกดูได้เลย" })}</p></div><button onClick={() => setEditCosts((v) => !v)} className={cn("ml-auto flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition", editCosts ? "border-amber-400/40 bg-amber-500/10 text-amber-300" : "border-white/12 bg-white/[0.03] text-white/60 hover:text-white/85")}><Pencil size={12} /> {L({ en: "Edit costs", th: "แก้ต้นทุน" })}</button><span className="rounded-md bg-rose-500/15 px-2 py-1 text-[12px] font-semibold text-rose-300">{thbCompact(cost(rcDefect))}/{L({ en: "day", th: "วัน" })}</span></div>
 
         {/* cost assumptions — hand-entered until ERP is connected */}
         {editCosts ? (
@@ -745,10 +1080,8 @@ function AnalyzeView({ L, onAct }: { L: Tr; onAct: () => void }) {
                 </li>
               ))}
             </ul>
-            {rc.defectId === "dim" ? <div className="mt-4"><DriftChart L={L} /></div> : null}
-
             {/* today's real damage from THIS defect — grounds the story in what already happened */}
-            <p className="mt-4 text-[11px] uppercase tracking-wider text-white/40">{L({ en: "Damage already done · today", th: "ความเสียหา·ี่เกิดแล้ว · วันนี้" })}</p>
+            <p className="mt-4 text-[11px] uppercase tracking-wider text-white/40">{L({ en: "Damage already done · today", th: "ความเสียหายที่เกิดแล้ว · วันนี้" })}</p>
             <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
               <div className="rounded-lg border border-white/8 bg-white/[0.02] p-2.5"><p className="text-[10px] text-white/45">{L({ en: "Caught", th: "ตรวจเจอ" })}</p><p className="mt-0.5 tabular text-base font-semibold text-white/85">{rcDefect.count} <span className="text-[10px] font-normal text-white/40">{L({ en: "pcs", th: "ชิ้น" })}</span></p></div>
               <div className="rounded-lg border border-white/8 bg-white/[0.02] p-2.5"><p className="text-[10px] text-white/45">{L({ en: "Scrapped", th: "คัดทิ้ง" })}</p><p className="mt-0.5 tabular text-base font-semibold" style={{ color: "var(--c-rose)" }}>{scrapUnits(rcDefect)} <span className="text-[10px] font-normal text-white/40">{L({ en: "pcs", th: "ชิ้น" })}</span></p></div>
@@ -793,49 +1126,13 @@ function AnalyzeView({ L, onAct }: { L: Tr; onAct: () => void }) {
               );
             })}
 
-            {/* where the story ends: the decision — fix now vs let it run */}
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.95, duration: 0.35 }} className="mt-4 rounded-xl border border-white/10 bg-white/[0.02] p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">{L({ en: "The decision", th: "ทางแ·ของเรื่องนี้" })}</p>
-              <div className="mt-2 space-y-1.5">
-                <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-400/20 bg-emerald-500/[0.06] px-2.5 py-1.5">
-                  <div className="min-w-0">
-                    <p className="text-[11px] text-white/70">{L({ en: "Fix now", th: "แก้ตอนนี้" })}</p>
-                    <p className="truncate text-[9.5px] text-white/45">{L(rc.fix.label)}</p>
-                  </div>
-                  <span className="tabular shrink-0 text-[12px] font-semibold text-emerald-300">{thbCompact(p.fixCost)}</span>
-                </div>
-                <div className="flex items-center justify-between rounded-lg border border-rose-400/20 bg-rose-500/[0.06] px-2.5 py-1.5">
-                  <span className="text-[11px] text-white/70">{L({ en: "Let it run", th: "ปล่อยไว้" })}</span>
-                  <span className="tabular text-[12px] font-semibold" style={{ color: "var(--c-rose)" }}>{L({ en: "risk", th: "เสี่ยง" })} {thbCompact(p.riskTHB)}</span>
-                </div>
-              </div>
-              <p className="mt-2 text-center text-[11px] font-medium text-white/70">{L({ en: `Acting now is ${Math.max(1, Math.round(p.riskTHB / Math.max(p.fixCost, 1)))}× cheaper`, th: `ตัดสินใจตอนนี้ถูกกว่า ${Math.max(1, Math.round(p.riskTHB / Math.max(p.fixCost, 1)))} เท่า` })}</p>
-              <button onClick={onAct} className="btn-glow mt-2 w-full justify-center py-1.5 text-[12px]">{L({ en: "Go to the fix plan", th: "ไปที่แผนแก้" })} <ArrowRight size={12} /></button>
-            </motion.div>
             </div>
           </div>
         </div>
       </Panel>
 
-      {/* Pattern intelligence · similar-case search — both read straight from the photo library, no extra systems */}
-      <section className="grid gap-6 lg:grid-cols-2 lg:items-start">
-        <Panel title={L({ en: "AI defect-pattern intelligence", th: "AI จำแนกรูปแบบดีเฟกต์" })} sub={L({ en: "how each defect behaves — read from photos and time-stamps alone", th: "นิสัยของดีเฟกต์แต่ละตัว — อ่านจากภาพถ่า·ับเวลาเท่านั้น" })} extra={<span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-400/12 text-brand-300"><Fingerprint size={16} /></span>}>
-          <ul className="space-y-2">
-            {defectPatterns.map((pt) => { const d = defects.find((x) => x.id === pt.defectId)!; const mine = pt.defectId === rc.defectId; return (
-              <li key={pt.kind.en} className={cn("rounded-xl border p-3 transition", mine ? "border-brand-400/40 bg-brand-400/[0.07]" : "border-white/8 bg-white/[0.02]")}>
-                <div className="flex items-center gap-2">
-                  <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-semibold", mine ? "bg-brand-400/15 text-brand-200" : "bg-white/8 text-white/60")}>{L(pt.kind)}</span>
-                  <button onClick={() => setRcId(pt.defectId)} className="truncate text-[11px] text-white/45 underline-offset-2 transition hover:text-brand-200 hover:underline">{L(d.name)}</button>
-                  {mine ? <span className="ml-auto shrink-0 text-[9.5px] font-semibold text-brand-300">{L({ en: "selected above", th: "ตัวที่เลือกอยู่" })}</span> : null}
-                </div>
-                <p className="mt-1.5 text-[12.5px] font-medium leading-snug text-white/85">{L(pt.title)}</p>
-                <p className="mt-1 text-[11px] leading-snug text-white/50">{L(pt.detail)}</p>
-              </li>
-            ); })}
-          </ul>
-        </Panel>
-
-        <Panel title={L({ en: "Similar defect search", th: "ค้นหาเคสที่คล้า·ัน" })} sub={L({ en: `today's ${L(rcDefect.name)} photos matched against ${defectClasses.reduce((s, c) => s + c.samples, 0).toLocaleString()} labelled photos in the library`, th: `เทียบภาพ ${L(rcDefect.name)} วันนี้ กับคลังภาพที่ติดป้ายแล้ว ${defectClasses.reduce((s, c) => s + c.samples, 0).toLocaleString()} ภาพ` })} extra={<span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-400/12 text-brand-300"><ScanSearch size={16} /></span>}>
+      {/* similar-case search — the plant's own fix history, full width (the most actionable panel) */}
+      <Panel title={L({ en: "Similar Defect Search", th: "ค้นหาเคสที่คล้ายกัน" })} sub={L({ en: `today's ${L(rcDefect.name)} photos matched against ${defectClasses.reduce((s, c) => s + c.samples, 0).toLocaleString()} labelled photos in the library`, th: `เทียบภาพ ${L(rcDefect.name)} วันนี้ กับคลังภาพที่ติดป้ายแล้ว ${defectClasses.reduce((s, c) => s + c.samples, 0).toLocaleString()} ภาพ` })} extra={<span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-400/12 text-brand-300"><ScanSearch size={16} /></span>}>
           <motion.div key={`sim-${rc.defectId}`} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className="space-y-2">
             {(similarCases[rc.defectId] ?? []).map((sc) => (
               <div key={sc.when.en} className="rounded-xl border border-white/8 bg-white/[0.02] p-3">
@@ -849,107 +1146,435 @@ function AnalyzeView({ L, onAct }: { L: Tr; onAct: () => void }) {
             ))}
           </motion.div>
           <p className="mt-2.5 rounded-lg border border-white/8 bg-white/[0.02] px-2.5 py-2 text-[11px] leading-relaxed text-white/50">{L({ en: "The plant's own history answers first — if it worked before, try that before anything expensive.", th: "ประวัติของโรงงานคุณเองตอบก่อน — ถ้าเคยแก้แบบไหนแล้วได้ผล ลองแบบนั้นก่อนวิธีที่แพงกว่า" })}</p>
-        </Panel>
-      </section>
+      </Panel>
 
-      {/* Business impact correlation ⭐ · invisible-cost detector beside it */}
-      <section className="grid gap-6 lg:grid-cols-[1.45fr_1fr] lg:items-start">
-        <Panel title={L({ en: "AI business-impact correlation", th: "เชื่อมโยงผลกระทบธุรกิจด้วย AI" })} sub={L({ en: "uses only the photo time-stamps, matched with the shift, model and production schedule you already have", th: "ใช้แค่เวลาในภาพถ่าย จับคู่กับกะ · รุ่น · ตารางผลิต ที่โรงงานมีอยู่แล้ว" })} extra={<span className="rounded-md bg-brand-400/12 px-2 py-0.5 text-[11px] font-semibold text-brand-200">★ USP</span>}>
-          <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">{L({ en: "Factors AI checked · today overall · strongest first", th: "ปัจจั·ี่ AI เทียบแล้ว · ภาพรวมวันนี้ · เรียงจากเกี่ยวมากสุด" })}</p>
+      {/* Business impact correlation ⭐ — the USP, full width */}
+      <Panel title={L({ en: "AI Business-Impact Correlation", th: "เชื่อมโยงผลกระทบธุรกิจด้วย AI" })} sub={L({ en: "uses only the photo time-stamps, matched with the shift, model and production schedule you already have", th: "ใช้แค่เวลาในภาพถ่าย จับคู่กับกะ · รุ่น · ตารางผลิต ที่โรงงานมีอยู่แล้ว" })} extra={<span className="rounded-md bg-brand-400/12 px-2 py-0.5 text-[11px] font-semibold text-brand-200">★ USP</span>}>
+          <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">{L({ en: "Factors AI checked · today overall · strongest first", th: "ปัจจัยที่ AI เทียบแล้ว · ภาพรวมวันนี้ · เรียงจากเกี่ยวมากสุด" })}</p>
           <div className="grid gap-2 sm:grid-cols-2">{correlations.filter((c) => c.phase === 1).map((c) => <CorrelationRow key={c.factor.en} c={c} L={L} />)}</div>
           <div className="mt-4 flex items-center gap-2"><Lock size={12} className="text-white/35" /><p className="text-[11px] font-medium text-white/45">{L({ en: "Phase 2 — unlocks as you connect more systems", th: "เฟส 2 — ปลดล็อกเพิ่มเมื่อเชื่อมระบบมากขึ้น" })}</p><span className="h-px flex-1 bg-white/8" /></div>
           <div className="mt-2 grid gap-2 sm:grid-cols-2">{correlations.filter((c) => c.phase === 2).map((c) => <CorrelationRow key={c.factor.en} c={c} L={L} />)}</div>
         </Panel>
 
-        <Panel title={L({ en: "AI invisible-cost detector", th: "AI จับต้นทุนแฝง" })} sub={L({ en: "finance books scrap — the rest hides", th: "ฝ่ายบัญชีเห็นแค่ของเสีย — ที่เหลือซ่อนอยู่" })}>
-          <div className="flex items-end justify-between rounded-xl border border-rose-400/20 bg-rose-500/[0.05] p-2.5">
-            <div><p className="text-[10px] text-white/50">{L({ en: "You see (scrap)", th: "ที่คุณเห็น (ของเสีย)" })}</p><p className="tabular text-lg font-semibold text-white/80">{thbCompact(copq.visible)}</p></div>
-            <ArrowRight size={15} className="mb-1 text-white/25" />
-            <div className="text-right"><p className="text-[10px] text-rose-300/80">{L({ en: "AI reveals (hidden)", th: "AI เจอเพิ่ม (ที่ซ่อน)" })}</p><p className="tabular text-lg font-semibold text-rose-300">{thbCompact(copq.invisible)}</p></div>
+      {/* forward look — "slipping now" + "coming next" in one panel */}
+      <Panel title={L({ en: "AI Looks Ahead", th: "AI มองไปข้างหน้า" })} sub={L({ en: "what's slipping now — and what it becomes if nobody acts", th: "อะไรกำลังเพี้ยนตอนนี้ — และจะกลายเป็นอะไรถ้าไม่ทำอะไร" })}>
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">{L({ en: "Slipping now", th: "กำลังเพี้ยน · ตอนนี้" })}</p>
+            <ul className="space-y-2">{processInsights.map((pi) => { const hex = pi.sev === "crit" ? "#f43f5e" : pi.sev === "warn" ? "#f59e0b" : "#34d399"; const txt = pi.sev === "crit" ? "var(--c-rose)" : pi.sev === "warn" ? "var(--c-amber-strong)" : "var(--c-emerald)"; return (
+              <li key={pi.title.en} className="rounded-xl border border-white/8 bg-white/[0.02] p-3">
+                <div className="flex items-center gap-2"><span className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ color: txt, backgroundColor: `${hex}1f` }}>{L(pi.kind)}</span><span className="text-[13px] font-medium text-white/85">{L(pi.title)}</span></div>
+                <p className="mt-1 text-[11px] leading-snug text-white/50">{L(pi.detail)}</p>
+              </li>
+            ); })}</ul>
           </div>
-          <div className="mt-2.5 space-y-1.5">{copqBreakdown.map((b) => (
-            <div key={b.label.en} className="flex items-center gap-2.5"><span className="w-28 shrink-0 truncate text-[11px] text-white/70">{L(b.label)}</span><div className="h-2 flex-1 overflow-hidden rounded-full bg-white/8"><div className="h-full rounded-full" style={{ width: `${(b.value / copq.today) * 100}%`, backgroundColor: b.visible ? "#64748b" : "#f43f5e" }} /></div><span className="w-12 shrink-0 text-right tabular text-[11px] font-semibold text-white/75">{thbCompact(b.value)}</span></div>
-          ))}</div>
-          <p className="mt-2.5 rounded-lg border border-rose-400/15 bg-rose-500/[0.04] px-2.5 py-2 text-[11px] leading-relaxed text-white/50">{L({ en: "Full year ≈", th: "คิดเป็นทั้งปี ≈" })} <span className="font-semibold text-rose-300">{thbCompact(copq.yr)}</span> — {Math.round(copq.invisible / copq.today * 100)}% {L({ en: "is money nobody sees", th: "เป็นเงินที่ไม่มีใครเห็นในบัญชี" })}</p>
-        </Panel>
-      </section>
-
-      {/* Process intelligence · predictions — side by side */}
-      <section className="grid gap-6 lg:grid-cols-2 lg:items-start">
-        <Panel title={L({ en: "AI process intelligence", th: "วิเคราะห์กระบวนการด้วย AI" })} sub={L({ en: "spots where the process is starting to slip — before it becomes the next defect", th: "จับจุดที่กระบวนการเริ่มเพี้ยน ก่อนจะกลายเป็นดีเฟกต์ตัวถัดไป" })}>
-          <ul className="space-y-2">{processInsights.map((p) => { const hex = p.sev === "crit" ? "#f43f5e" : p.sev === "warn" ? "#f59e0b" : "#34d399"; const txt = p.sev === "crit" ? "var(--c-rose)" : p.sev === "warn" ? "var(--c-amber-strong)" : "var(--c-emerald)"; return (
-            <li key={p.title.en} className="rounded-xl border border-white/8 bg-white/[0.02] p-3">
-              <div className="flex items-center gap-2"><span className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ color: txt, backgroundColor: `${hex}1f` }}>{L(p.kind)}</span><span className="text-[13px] font-medium text-white/85">{L(p.title)}</span></div>
-              <p className="mt-1 text-[11px] leading-snug text-white/50">{L(p.detail)}</p>
-            </li>
-          ); })}</ul>
-        </Panel>
-
-        <Panel title={L({ en: "AI looks ahead", th: "AI มองล่วงหน้า" })} sub={L({ en: "what will go wrong next — and how much it will cost if nobody acts", th: "อะไรกำลังจะพัง — และถ้าไม่ทำอะไรจะเสียเท่าไหร่" })}>
-          <div className="grid gap-2 xl:grid-cols-2">{predictions.map((p) => (
-            <div key={p.kind.en} className="rounded-xl border border-white/8 bg-white/[0.02] p-3">
-              <div className="flex items-center justify-between"><span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-white/85"><TrendingUp size={13} className="text-amber-300" /> {L(p.kind)}</span><span className="rounded-md bg-white/8 px-1.5 py-0.5 text-[10px] font-semibold tabular text-white/70">{p.prob}%</span></div>
-              <p className="mt-1 text-[11.5px] leading-snug text-white/55">{L(p.detail)}</p>
-              <div className="mt-1.5 flex items-center justify-between text-[10.5px]"><span className="text-white/40">{L({ en: "in", th: "ใน" })} {L(p.when)}</span><span className="font-semibold text-rose-300">{thbCompact(p.impact)} {L({ en: "at risk", th: "เสี่ยง" })}</span></div>
-            </div>
-          ))}</div>
-        </Panel>
-      </section>
+          <div>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">{L({ en: "Coming next · forecast", th: "จะเกิดถัดไป · ล่วงหน้า" })}</p>
+            <div className="space-y-2">{predictions.map((pr) => (
+              <div key={pr.kind.en} className="rounded-xl border border-white/8 bg-white/[0.02] p-3">
+                <div className="flex items-center justify-between"><span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-white/85"><TrendingUp size={13} className="text-amber-300" /> {L(pr.kind)}</span><span className="rounded-md bg-white/8 px-1.5 py-0.5 text-[10px] font-semibold tabular text-white/70">{pr.prob}%</span></div>
+                <p className="mt-1 text-[11.5px] leading-snug text-white/55">{L(pr.detail)}</p>
+                <div className="mt-1.5 flex items-center justify-between text-[10.5px]"><span className="text-white/40">{L({ en: "in", th: "ใน" })} {L(pr.when)}</span><span className="font-semibold text-rose-300">{thbCompact(pr.impact)} {L({ en: "at risk", th: "เสี่ยง" })}</span></div>
+              </div>
+            ))}</div>
+          </div>
+        </div>
+      </Panel>
     </div>
   );
 }
 
 /* ══════════════════════════ tab · ACT ══════════════════════════ */
-function ActView({ wos, onRaise, L }: { wos: WorkOrder[]; onRaise: (a: Action) => void; L: Tr }) {
-  const [picked, setPicked] = useState<Set<string>>(new Set(["die", "supplier"]));
-  const toggle = (id: string) => setPicked((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const chosen = simScenarios.filter((s) => picked.has(s.id));
-  const combinedReduction = Math.round((1 - chosen.reduce((p, s) => p * (1 - s.reduction / 100), 1)) * 100);
-  const capex = chosen.reduce((s, x) => s + x.capex, 0);
-  const savingYr = Math.round(copq.yr * combinedReduction / 100);
-  const roi = capex > 0 ? Math.round((savingYr / capex) * 10) / 10 : null;
-  const paybackMo = capex > 0 ? Math.max(1, Math.round(capex / (savingYr / 12))) : 0;
-  const raisedFor = (id: string) => wos.find((w) => w.findingId === `vision-${id}`);
-  const ranked = [...actions].sort((a, b) => { const r = (raisedFor(a.id) ? 1 : 0) - (raisedFor(b.id) ? 1 : 0); return r !== 0 ? r : a.priority.localeCompare(b.priority); });
+
+/** small on/off switch (local copy of the shared Toggle). */
+function Toggle({ on, onChange, color = "#818cf8" }: { on: boolean; onChange: () => void; color?: string }) {
+  return (
+    <button onClick={onChange} role="switch" aria-checked={on} className="relative h-5 w-9 shrink-0 rounded-full transition-colors" style={{ background: on ? color : "rgba(255,255,255,0.16)" }}>
+      <span className="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all" style={{ left: on ? "18px" : "2px" }} />
+    </button>
+  );
+}
+
+const CP_SEV: Record<"critical" | "warning" | "recommend", { label: LZ; cls: string }> = {
+  critical: { label: { en: "Critical", th: "วิกฤต" }, cls: "border-rose-400/40 bg-rose-500/12 text-rose-300" },
+  warning: { label: { en: "Warning", th: "เตือน" }, cls: "border-amber-400/40 bg-amber-500/12 text-amber-300" },
+  recommend: { label: { en: "Recommend", th: "แนะนำ" }, cls: "border-emerald-400/40 bg-emerald-500/12 text-emerald-300" },
+};
+
+/** Outlook-style compose window — a Request-for-Quotation email to SpareX with the
+ *  project's BOM pre-filled and the signed-in user's signature. Send is simulated. */
+function QuoteEmailModal({ project, L, onClose, onSent }: { project: (typeof visionCapitalProjects)[number]; L: Tr; onClose: () => void; onSent: () => void }) {
+  const title = L(project.title);
+  const bom = project.parts.map((p, i) => `${i + 1}. ${L(p.name)} · ${p.brand} · ${p.partNo} · ${p.qty} × ${thbCompact(p.unitPrice)} · ${thbCompact(p.qty * p.unitPrice)}`).join("\n");
+  const sig = L({
+    en: `—\n${currentUser.name}\n${currentUser.title} · ${currentUser.plant}\n${currentUser.company}\n${currentUser.email} · ${currentUser.phone}`,
+    th: `—\n${currentUser.name}\n${currentUser.titleTh} · ${currentUser.plant}\n${currentUser.company}\n${currentUser.email} · ${currentUser.phone}`,
+  });
+  const [subject, setSubject] = useState(L({ en: `Request for Quotation · ${title}`, th: `ขอใบเสนอราคา · ${title}` }));
+  const [body, setBody] = useState(L({
+    en: `Dear SpareX Sales team,\n\nWe would like to request a formal quotation for the following vision-quality improvement project:\n\nProject: ${title}\nLocation: ${L(project.asset)}\nEstimated budget: ${thbCompact(project.capex)}\nReturn: saves ${thbCompact(project.savingYr)}/yr · payback ${project.paybackMo} months\n\nBill of materials:\n${bom}\n\nPlease include unit prices, lead time, warranty and installation. Equivalent brands are welcome if the specs are met.\n\nThank you,\n\n${sig}`,
+    th: `เรียน ทีมขาย SpareX,\n\nทางเราขอใบเสนอราคาอย่างเป็นทางการสำหรับโครงการปรับปรุงคุณภาพงานตรวจดังนี้:\n\nโครงการ: ${title}\nจุดติดตั้ง: ${L(project.asset)}\nงบประมาณโดยประมาณ: ${thbCompact(project.capex)}\nผลตอบแทน: ประหยัด ${thbCompact(project.savingYr)}/ปี · คืนทุน ${project.paybackMo} เดือน\n\nรายการอะไหล่ (BOM):\n${bom}\n\nรบกวนเสนอราคาต่อหน่วย ระยะเวลาส่งมอบ การรับประกัน และค่าติดตั้ง (เสนอรุ่นเทียบเท่าได้หากสเปคตรง)\n\nขอบคุณครับ/ค่ะ\n\n${sig}`,
+  }));
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const send = () => {
+    setSending(true);
+    setTimeout(() => { setSending(false); setSent("SPX-Q-" + Date.now().toString(36).slice(-6).toUpperCase()); onSent(); }, 900);
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[200] grid place-items-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white text-slate-800 shadow-2xl">
+        <div className="flex items-center justify-between bg-[#0f6cbd] px-4 py-2.5 text-white">
+          <span className="flex items-center gap-2 text-[13px] font-semibold"><Send size={14} /> {L({ en: "New message · Request for Quotation", th: "ข้อความใหม่ · ขอใบเสนอราคา" })}</span>
+          <button onClick={onClose} className="grid h-6 w-6 place-items-center rounded transition hover:bg-white/20"><X size={15} /></button>
+        </div>
+
+        {sent ? (
+          <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
+            <span className="grid h-14 w-14 place-items-center rounded-full bg-emerald-100 text-emerald-600"><Check size={28} /></span>
+            <p className="text-[15px] font-semibold text-slate-800">{L({ en: "Quotation request sent", th: "ส่งคำขอใบเสนอราคาแล้ว" })}</p>
+            <p className="text-[12.5px] text-slate-500">{L({ en: "Sent to", th: "ส่งถึง" })} <b className="text-slate-700">{SPAREX_SALES_EMAIL}</b><br />{L({ en: "Ref", th: "เลขอ้างอิง" })}: <b className="font-mono text-slate-700">{sent}</b></p>
+            <p className="max-w-sm text-[12px] text-slate-400">{L({ en: "The SpareX sales team will reply within 1 business day.", th: "ทีมขาย SpareX จะติดต่อกลับภายใน 1 วันทำการ" })}</p>
+            <button onClick={onClose} className="mt-2 rounded-lg bg-[#0f6cbd] px-5 py-2 text-[13px] font-medium text-white transition hover:bg-[#0c5aa0]">{L({ en: "Close", th: "ปิด" })}</button>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-2">
+              <button onClick={send} disabled={sending} className="flex items-center gap-1.5 rounded bg-[#0f6cbd] px-4 py-1.5 text-[13px] font-semibold text-white transition hover:bg-[#0c5aa0] disabled:opacity-60"><Send size={13} /> {sending ? L({ en: "Sending…", th: "กำลังส่ง…" }) : L({ en: "Send", th: "ส่ง" })}</button>
+              <span className="grid h-8 w-8 place-items-center rounded text-slate-400"><Paperclip size={15} /></span>
+            </div>
+            <div className="border-b border-slate-100 px-4 py-2 text-[13px]">
+              <div className="flex items-center gap-2 border-b border-slate-100 py-1.5"><span className="w-14 shrink-0 text-slate-400">{L({ en: "To", th: "ถึง" })}</span><span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[12px] font-medium text-[#0f6cbd]">SpareX Sales &lt;{SPAREX_SALES_EMAIL}&gt;</span></div>
+              <div className="flex items-center gap-2 py-1.5"><span className="w-14 shrink-0 text-slate-400">{L({ en: "Subject", th: "เรื่อง" })}</span><input value={subject} onChange={(e) => setSubject(e.target.value)} className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-slate-800 outline-none" /></div>
+            </div>
+            <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-2">
+              <span className="flex items-center gap-1.5 rounded border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11.5px] text-slate-600"><Paperclip size={12} /> BOM-{project.id}.pdf <span className="text-slate-400">· {(project.parts.length * 12 + 40)} KB</span></span>
+            </div>
+            <textarea value={body} onChange={(e) => setBody(e.target.value)} className="min-h-[240px] flex-1 resize-none px-4 py-3 text-[12.5px] leading-relaxed text-slate-700 outline-none" spellCheck={false} />
+          </>
+        )}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function ActView({ L }: { L: Tr }) {
+  const [lit, setLit] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setLit(true), 90); return () => clearTimeout(t); }, []);
+  const [openId, setOpenId] = useState<string | null>(visionCapitalProjects[0]?.id ?? null);
+  const [doneQw, setDoneQw] = useState<Set<string>>(new Set());
+  const [poDone, setPoDone] = useState<Set<string>>(new Set());
+  const [quoteFor, setQuoteFor] = useState<(typeof visionCapitalProjects)[number] | null>(null);
+  const [focus, setFocus] = useState<"all" | "quick" | "capex">("all");
+  const [capSev, setCapSev] = useState<"all" | "critical" | "warning" | "recommend">("all");
+  const [qwFilter, setQwFilter] = useState<"all" | "pending" | "done">("all");
+  const [qwSel, setQwSel] = useState<string | null>(visionQuickWins[0]?.id ?? null);
+  const [qwAuto, setQwAuto] = useState<Record<string, boolean>>(() => Object.fromEntries(visionQuickWins.map((q) => [q.id, true])));
+  const [quoteSent, setQuoteSent] = useState<Set<string>>(new Set());
+  const orders = useWorkOrders();
+
+  const noCapex = visionQuickWins.reduce((s, q) => s + q.savingYr, 0);
+  const capexSaving = visionCapitalProjects.reduce((s, c) => s + c.savingYr, 0);
+  const capexTotal = visionCapitalProjects.reduce((s, c) => s + c.capex, 0);
+  const grand = noCapex + capexSaving;
+  const blended = Math.round((capexTotal / capexSaving) * 12);
+  const ncPct = Math.round((noCapex / grand) * 100);
+  const woFor = (id: string) => orders.find((w) => w.findingId === id);
+  const hasWO = (id: string) => poDone.has(id) || !!woFor(id);
+
+  // capital project → single Work Order for installation & commissioning (raised on budget approval)
+  const raisePO = (c: (typeof visionCapitalProjects)[number]) => {
+    createWorkOrder({ id: c.id, code: c.code, title: { en: `Install & commission · ${L(c.title)}`, th: `ติดตั้ง & Commissioning · ${L(c.title)}` }, asset: c.asset, severity: c.severity === "recommend" ? "advisory" : c.severity, capex: c.capex, annualSaving: c.savingYr, partsCount: c.parts.length }, "production");
+    setPoDone((s) => new Set(s).add(c.id));
+  };
+  // quick win → one-time setup/enable Work Order (config task, no parts → goes straight to "scheduled")
+  const commitQuickWin = (q: (typeof visionQuickWins)[number]) => {
+    const auto = qwAuto[q.id];
+    createWorkOrder({ id: q.id, code: q.id.toUpperCase(), title: { en: `${auto ? "Set up & enable AI-auto" : "Configure"} · ${L(q.title)}`, th: `${auto ? "ตั้งค่า & เปิด AI-auto" : "ตั้งค่า"} · ${L(q.title)}` }, asset: q.asset, severity: "advisory", capex: 0, annualSaving: q.savingYr, partsCount: 0 }, "production");
+    setDoneQw((s) => new Set(s).add(q.id));
+  };
 
   return (
     <div className="space-y-6">
-      <section className="panel overflow-hidden p-0">
-        <div className="flex items-center gap-2 border-b border-white/10 p-5"><Wrench size={18} className="text-brand-300" /><div><h3 className="font-semibold">{L({ en: "AI action center", th: "ศูนย์สั่งการ AI" })}</h3><p className="mt-0.5 text-xs text-white/45">{L({ en: "ranked by how much each fix cuts defects — press the button to issue the work order", th: "เรียงตามว่าแก้แล้วลดดีเฟกต์ได้มากแค่ไหน — กดปุ่มออกใบสั่งงานได้เลย" })}</p></div></div>
-        <ul>{ranked.map((a) => { const raised = raisedFor(a.id); const pcol = a.priority === "P1" ? "#f43f5e" : a.priority === "P2" ? "#f59e0b" : "#22d3ee"; const ptxt = a.priority === "P1" ? "var(--c-rose)" : a.priority === "P2" ? "var(--c-amber-strong)" : "var(--c-cyan)"; return (
-          <li key={a.id} className={cn("flex flex-col gap-3 border-t border-white/5 p-4 transition sm:flex-row sm:items-center", raised && "opacity-60")}>
-            <span className="grid h-7 w-9 shrink-0 place-items-center rounded-md text-[11px] font-semibold" style={{ color: ptxt, backgroundColor: `${pcol}1f` }}>{a.priority}</span>
-            <div className="min-w-0 flex-1"><p className="text-sm font-medium text-white/90">{L(a.title)}</p><p className="mt-0.5 flex items-start gap-1.5 text-[12px] text-white/55"><FileText size={12} className="mt-0.5 shrink-0 text-brand-300" /> SOP: {L(a.sop)}</p></div>
-            <div className="flex shrink-0 items-center gap-3">
-              <div className="text-right"><p className="text-[10px] uppercase tracking-wider text-white/35">{L({ en: "defect ↓", th: "ลดดีเฟกต์" })}</p><p className="tabular text-base font-semibold text-emerald-300">−{a.reduction}%</p></div>
-              {raised ? <WoStatus wo={raised} L={L} /> : <button onClick={() => onRaise(a)} className="btn-glow whitespace-nowrap px-3 py-1.5 text-[12px]">{L({ en: "Generate CAPA", th: "ออก CAPA" })} <ArrowRight size={13} /></button>}
-            </div>
-          </li>
-        ); })}</ul>
-      </section>
-
-      <Panel title={L({ en: "AI solution simulator", th: "จำลองทางแก้ด้วย AI" })} sub={L({ en: "pick fixes — see the combined outcome before you commit", th: "เลือกทางแก้ — ดูผลรวมก่อนลงมือ" })} extra={<span className="rounded-md bg-brand-400/12 px-2 py-0.5 text-[11px] font-semibold text-brand-200"><Beaker size={11} className="mr-1 inline" />{L({ en: "what-if", th: "จำลอง" })}</span>}>
-        <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
-          <div className="space-y-2">{simScenarios.map((s) => { const on = picked.has(s.id); return (
-            <button key={s.id} onClick={() => toggle(s.id)} className={cn("flex w-full items-center gap-3 rounded-xl border px-3.5 py-2.5 text-left transition", on ? "border-brand-400/40 bg-brand-400/[0.08]" : "border-white/10 bg-white/[0.02] hover:bg-white/[0.04]")}>
-              <span className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-md border", on ? "border-brand-400 bg-brand-400 text-ink-950" : "border-white/20")}>{on ? <Check size={13} /> : null}</span>
-              <div className="min-w-0 flex-1"><p className="truncate text-[13px] font-medium text-white/85">{L(s.label)}</p>{s.note ? <p className="truncate text-[10px] text-amber-300/80">{L(s.note)}</p> : null}</div>
-              <span className="shrink-0 tabular text-[12px] font-semibold text-emerald-300">−{s.reduction}%</span>
-            </button>
-          ); })}</div>
-          <div className="flex flex-col justify-center rounded-xl border border-brand-400/20 bg-brand-400/[0.04] p-4">
-            <p className="text-[11px] uppercase tracking-wider text-white/45">{L({ en: "Projected outcome", th: "ผลที่คาดว่าจะได้" })}</p>
-            <p className="mt-1 tabular text-4xl font-bold text-emerald-300">−{combinedReduction}%</p>
-            <p className="text-[11px] text-white/45">{L({ en: "defect reduction", th: "การลดดีเฟกต์" })}</p>
-            <div className="mt-3 space-y-1.5 border-t border-white/10 pt-3 text-[12px]">
-              <div className="flex justify-between"><span className="text-white/50">{L({ en: "COPQ saved/yr", th: "ประหยัด COPQ/ปี" })}</span><span className="tabular font-semibold text-emerald-300">{thbCompact(savingYr)}</span></div>
-              <div className="flex justify-between"><span className="text-white/50">{L({ en: "Investment", th: "เงินลงทุน" })}</span><span className="tabular text-white/80">{thbCompact(capex)}</span></div>
-              <div className="flex justify-between"><span className="text-white/50">ROI</span><span className="tabular font-semibold text-white/85">{roi != null ? `${roi}×` : L({ en: "no capex", th: "ไม่ต้องลงทุน" })}</span></div>
-              <div className="flex justify-between"><span className="text-white/50">{L({ en: "Payback", th: "คืนทุน" })}</span><span className="tabular text-white/80">{paybackMo ? `${paybackMo} ${L({ en: "mo", th: "เดือน" })}` : "—"}</span></div>
-            </div>
+      {/* Executive summary — the ฿ decision in one glance */}
+      <section className="panel p-5" style={{ background: "linear-gradient(180deg, rgba(52,211,153,0.06), transparent 82%)" }}>
+        <div className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-wider text-white/45">
+          <Icon3D icon={Sparkles} color="#34d399" size={28} rounded={9} /> {L({ en: "Action plan · recoverable this year", th: "แผนลงมือ · กู้คืนได้ปีนี้" })}
+        </div>
+        <p className="mt-3 tabular text-4xl font-bold text-white">{thbCompact(grand)}<span className="ml-2 text-sm font-normal text-white/45">/{L({ en: "yr", th: "ปี" })}</span></p>
+        <div className="mt-3 max-w-lg">
+          <div className="flex h-2.5 overflow-hidden rounded-full bg-white/8">
+            <div style={{ width: lit ? `${ncPct}%` : "0%", background: "linear-gradient(90deg,#34d399,#059669)", transition: "width 1000ms ease" }} />
+            <div style={{ width: lit ? `${100 - ncPct}%` : "0%", background: "linear-gradient(90deg,#818cf8,#4f46e5)", transition: "width 1000ms ease" }} />
           </div>
         </div>
-      </Panel>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <button
+            onClick={() => setFocus((f) => (f === "quick" ? "all" : "quick"))}
+            className={cn("flex items-center gap-3 rounded-xl border p-3.5 text-left transition", focus === "quick" ? "border-emerald-400/60 bg-emerald-400/[0.11] ring-1 ring-emerald-400/40" : "border-emerald-400/25 bg-emerald-400/[0.06] hover:bg-emerald-400/[0.09]")}
+          >
+            <Icon3D icon={Zap} color="#34d399" size={34} rounded={10} />
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300">{L({ en: "No investment · do it now", th: "ไม่ต้องลงทุน · ทำได้เลย" })}</p>
+              <p className="tabular text-xl font-bold text-emerald-200">{thbCompact(noCapex)}<span className="text-[11px] font-normal text-white/45">/{L({ en: "yr", th: "ปี" })}</span></p>
+              <p className="text-[10.5px] text-white/45">{visionQuickWins.length} {L({ en: "actions · ฿0 capex", th: "รายการ · ลงทุน ฿0" })}</p>
+            </div>
+            <span className="ml-auto flex shrink-0 items-center gap-1 self-center text-[10px] font-medium text-emerald-300">
+              {focus === "quick" ? <><Check size={12} /> {L({ en: "showing", th: "กำลังดู" })}</> : <>{L({ en: "see actions", th: "ดูสิ่งที่ต้องทำ" })} <ArrowRight size={12} /></>}
+            </span>
+          </button>
+          <button
+            onClick={() => setFocus((f) => (f === "capex" ? "all" : "capex"))}
+            className={cn("flex items-center gap-3 rounded-xl border p-3.5 text-left transition", focus === "capex" ? "border-indigo-400/60 bg-indigo-400/[0.11] ring-1 ring-indigo-400/40" : "border-indigo-400/25 bg-indigo-400/[0.06] hover:bg-indigo-400/[0.09]")}
+          >
+            <Icon3D icon={Wallet} color="#818cf8" size={34} rounded={10} />
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-indigo-300">{L({ en: "With investment", th: "ต้องลงทุน" })}</p>
+              <p className="tabular text-xl font-bold text-indigo-200">+{thbCompact(capexSaving)}<span className="text-[11px] font-normal text-white/45">/{L({ en: "yr", th: "ปี" })}</span></p>
+              <p className="text-[10.5px] text-white/45">{L({ en: "budget", th: "งบ" })} {thbCompact(capexTotal)} · {L({ en: "payback", th: "คืนทุน" })} {blended} {L({ en: "mo", th: "เดือน" })}</p>
+            </div>
+            <span className="ml-auto flex shrink-0 items-center gap-1 self-center text-[10px] font-medium text-indigo-300">
+              {focus === "capex" ? <><Check size={12} /> {L({ en: "showing", th: "กำลังดู" })}</> : <>{L({ en: "see actions", th: "ดูสิ่งที่ต้องทำ" })} <ArrowRight size={12} /></>}
+            </span>
+          </button>
+        </div>
+        {focus !== "all" ? (
+          <button onClick={() => setFocus("all")} className="mt-2 text-[11px] text-white/45 underline-offset-2 transition hover:text-white/70 hover:underline">{L({ en: "← Show both parts", th: "← ดูทั้งสองส่วน" })}</button>
+        ) : null}
+      </section>
+
+      {/* Part 1 · Quick wins (no capex) */}
+      {focus !== "capex" ? (
+      <div>
+        <div className="mb-3 flex flex-wrap items-center gap-2.5">
+          <Icon3D icon={Rocket} color="#34d399" size={30} rounded={9} />
+          <div className="min-w-0">
+            <h3 className="text-[15px] font-semibold text-white">{L({ en: "1 · Quick wins — no investment", th: "1 · ทำได้เลย — ไม่ต้องลงทุน" })}</h3>
+            <p className="text-[11px] text-white/45">{L({ en: "Approve on the spot · the AI can run these automatically", th: "อนุมัติได้ทันที · AI สั่งทำเองได้" })}</p>
+          </div>
+          {/* status filter */}
+          <div className="ml-auto flex flex-wrap items-center gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-0.5">
+            {([
+              ["all", { en: "All", th: "ทั้งหมด" }, null],
+              ["pending", { en: "To do", th: "รอทำ" }, "#818cf8"],
+              ["done", { en: "Scheduled", th: "จัดแล้ว" }, "#34d399"],
+            ] as ["all" | "pending" | "done", LZ, string | null][]).map(([id, lab, dot]) => {
+              const n = id === "all" ? visionQuickWins.length : visionQuickWins.filter((q) => (doneQw.has(q.id) || hasWO(q.id)) === (id === "done")).length;
+              const sel = qwFilter === id;
+              return (
+                <button key={id} onClick={() => setQwFilter(id)} className={cn("flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium transition", sel ? "bg-white/10 text-white/90" : "text-white/45 hover:text-white/70")}>
+                  {dot ? <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot }} /> : null}
+                  {L(lab)} <span className="tabular text-white/40">{n}</span>
+                </button>
+              );
+            })}
+          </div>
+          <span className="chip text-emerald-300">{thbCompact(noCapex)}/{L({ en: "yr", th: "ปี" })} · ฿0</span>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {visionQuickWins.filter((q) => qwFilter === "all" || (doneQw.has(q.id) || hasWO(q.id)) === (qwFilter === "done")).map((q) => {
+            const on = qwSel === q.id;
+            const done = doneQw.has(q.id) || hasWO(q.id);
+            return (
+              <div key={q.id} onClick={() => setQwSel(on ? null : q.id)} className={cn("flex cursor-pointer flex-col rounded-2xl border p-4 transition", on ? "border-emerald-400/50 bg-emerald-400/[0.07] ring-1 ring-emerald-400/30" : done ? "border-emerald-400/20 bg-emerald-400/[0.03]" : "border-white/10 bg-white/[0.02] hover:bg-white/[0.04]")}>
+                <p className="text-[13px] font-medium leading-snug text-white">{L(q.title)}</p>
+                <p className="mt-1 text-[10.5px] text-white/40">{L(q.asset)}</p>
+                <p className="mt-2 flex-1 text-[11px] leading-relaxed text-white/55">{L(q.how)}</p>
+                <div className="mt-2.5">
+                  <p className="tabular text-lg font-bold text-emerald-300">{thbCompact(q.savingYr)}</p>
+                  <p className="text-[9.5px] text-white/35">/{L({ en: "yr", th: "ปี" })} · {L(q.effort)}</p>
+                </div>
+                <div className="mt-3 flex items-center justify-between border-t border-white/8 pt-2.5">
+                  <span className="flex items-center gap-1.5 text-[10.5px] text-white/55"><Bot size={12} style={{ color: qwAuto[q.id] ? "#818cf8" : "rgba(255,255,255,0.4)" }} /> AI Auto</span>
+                  <span onClick={(e) => { e.stopPropagation(); setQwAuto((a) => ({ ...a, [q.id]: !a[q.id] })); }}><Toggle on={qwAuto[q.id]} onChange={() => {}} /></span>
+                </div>
+                <span className="mt-2 flex items-center justify-center gap-1 text-[10.5px] font-medium text-emerald-300">{on ? L({ en: "Hide detail", th: "ซ่อนรายละเอียด" }) : L({ en: "How to do it", th: "ดูวิธีทำ" })} <ChevronDown size={12} className={cn("transition-transform", on && "rotate-180")} /></span>
+              </div>
+            );
+          })}
+        </div>
+        <AnimatePresence initial={false}>
+          {qwSel ? (() => {
+            const q = visionQuickWins.find((x) => x.id === qwSel)!;
+            const qwo = woFor(q.id);
+            const done = doneQw.has(q.id) || !!qwo;
+            return (
+              <motion.div key={qwSel} initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} style={{ overflow: "hidden" }}>
+                <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                  <div className="mb-3 flex flex-wrap items-center gap-3">
+                    <Icon3D icon={Rocket} color="#34d399" size={26} rounded={8} />
+                    <p className="text-[13.5px] font-semibold text-white">{L(q.title)}</p>
+                    <span className="ml-auto flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5">
+                      <span className="flex items-center gap-1.5 text-[11px] text-white/60"><Bot size={12} style={{ color: qwAuto[q.id] ? "#818cf8" : "rgba(255,255,255,0.4)" }} /> AI Auto</span>
+                      <Toggle on={qwAuto[q.id]} onChange={() => setQwAuto((a) => ({ ...a, [q.id]: !a[q.id] }))} />
+                    </span>
+                  </div>
+                  {qwAuto[q.id] ? (
+                    <p className="mb-3 flex items-center gap-1.5 rounded-lg border border-indigo-400/25 bg-indigo-400/[0.06] px-2.5 py-1.5 text-[11px] text-indigo-200"><Bot size={12} className="shrink-0" /> {L({ en: "AI will apply and hold this configuration automatically under guardrails — override anytime.", th: "AI จะตั้งค่าและคุมให้อัตโนมัติภายใต้ guardrail — ปรับเองได้ทุกเมื่อ" })}</p>
+                  ) : null}
+                  {/* how to do it — a simple checklist */}
+                  <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3.5">
+                    <p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-300"><Rocket size={12} /> {L({ en: "How to do it", th: "วิธีทำ" })}</p>
+                    <ul className="space-y-1.5">
+                      <li className="flex items-start gap-2 text-[12px] leading-relaxed text-white/75"><ArrowRight size={12} className="mt-0.5 shrink-0 text-emerald-400" /> {L(q.how)}</li>
+                      <li className="flex items-start gap-2 text-[12px] leading-relaxed text-white/75"><ArrowRight size={12} className="mt-0.5 shrink-0 text-emerald-400" /> {L({ en: "No hardware — configuration only", th: "ไม่ต้องมีฮาร์ดแวร์ — ตั้งค่าอย่างเดียว" })} · {L(q.effort)}</li>
+                      <li className="flex items-start gap-2 text-[12px] leading-relaxed text-white/75"><ArrowRight size={12} className="mt-0.5 shrink-0 text-emerald-400" /> {L({ en: "Recovers", th: "กู้คืนได้" })} <b className="tabular text-emerald-300">{thbCompact(q.savingYr)}/{L({ en: "yr", th: "ปี" })}</b> {L({ en: "at ฿0 capex", th: "โดยไม่ต้องลงทุน" })}</li>
+                    </ul>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <span className="text-[10.5px] text-white/40">
+                      {done && qwAuto[q.id] ? <span className="flex items-center gap-1 text-indigo-300"><Bot size={12} /> {L({ en: "AI is running this automatically", th: "AI กำลังรันอัตโนมัติ" })}</span> : null}
+                    </span>
+                    {done ? (
+                      <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-[12px] font-medium text-emerald-300"><Check size={13} /> {L({ en: "Work Order raised", th: "สร้าง WO แล้ว" })}{qwo ? ` · ${qwo.id}` : ""}</span>
+                    ) : (
+                      <motion.button whileTap={{ scale: 0.97 }} onClick={() => commitQuickWin(q)} className="btn-glow px-4 py-2 text-[12px]">{qwAuto[q.id] ? <><Bot size={13} /> {L({ en: "Enable · AI runs it", th: "เปิดใช้งาน · ให้ AI รัน" })}</> : <><Check size={13} /> {L({ en: "Confirm & schedule", th: "ยืนยัน & จัดตาราง" })}</>}</motion.button>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })() : null}
+        </AnimatePresence>
+      </div>
+      ) : null}
+
+      {/* Part 2 · Capital projects (capex + BOM) */}
+      {focus !== "quick" ? (
+      <div>
+        <div className="mb-3 flex flex-wrap items-center gap-2.5">
+          <Icon3D icon={Wrench} color="#818cf8" size={30} rounded={9} />
+          <div className="min-w-0">
+            <h3 className="text-[15px] font-semibold text-white">{L({ en: "2 · Capital projects — with spec & part numbers", th: "2 · ต้องลงทุน — พร้อมสเปค & Part Number" })}</h3>
+            <p className="text-[11px] text-white/45">{L({ en: "Expand for the full BOM an engineer can order", th: "กางดู BOM ที่วิศวกรสั่งซื้อได้ทันที" })}</p>
+          </div>
+          {/* severity filter */}
+          <div className="ml-auto flex flex-wrap items-center gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-0.5">
+            {([
+              ["all", { en: "All", th: "ทั้งหมด" }, null],
+              ["critical", CP_SEV.critical.label, "#f43f5e"],
+              ["warning", CP_SEV.warning.label, "#f59e0b"],
+              ["recommend", CP_SEV.recommend.label, "#34d399"],
+            ] as ["all" | "critical" | "warning" | "recommend", LZ, string | null][]).map(([id, lab, dot]) => {
+              const n = id === "all" ? visionCapitalProjects.length : visionCapitalProjects.filter((c) => c.severity === id).length;
+              const sel = capSev === id;
+              return (
+                <button key={id} onClick={() => setCapSev(id)} className={cn("flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium transition", sel ? "bg-white/10 text-white/90" : "text-white/45 hover:text-white/70")}>
+                  {dot ? <span className="h-1.5 w-1.5 rounded-full" style={{ background: dot }} /> : null}
+                  {L(lab)} <span className="tabular text-white/40">{n}</span>
+                </button>
+              );
+            })}
+          </div>
+          <span className="chip text-indigo-300">+{thbCompact(capexSaving)}/{L({ en: "yr", th: "ปี" })} · {L({ en: "budget", th: "งบ" })} {thbCompact(capexTotal)}</span>
+        </div>
+        <div className="space-y-3">
+          {visionCapitalProjects.filter((c) => capSev === "all" || c.severity === capSev).map((c) => {
+            const open = openId === c.id;
+            const partsSum = c.parts.reduce((s, p) => s + p.qty * p.unitPrice, 0);
+            const install = c.capex - partsSum;
+            const done = hasWO(c.id);
+            return (
+              <div key={c.id} className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02]">
+                <button onClick={() => setOpenId(open ? null : c.id)} className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 p-4 text-left transition hover:bg-white/[0.02]">
+                  <div className="min-w-[160px] flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide", CP_SEV[c.severity].cls)}>{L(CP_SEV[c.severity].label)}</span>
+                      <span className="shrink-0 rounded-md bg-white/[0.06] px-1.5 py-0.5 text-[9.5px] font-semibold tabular text-white/55">{c.code}</span>
+                      <p className="text-[13.5px] font-medium text-white">{L(c.title)}</p>
+                    </div>
+                    <p className="mt-0.5 text-[10.5px] text-white/40">{L(c.asset)} · {c.parts.length} {L({ en: "parts", th: "รายการอะไหล่" })}</p>
+                  </div>
+                  <div className="text-right"><p className="tabular text-[13px] font-bold text-emerald-300">+{thbCompact(c.savingYr)}</p><p className="text-[9px] uppercase text-white/35">/{L({ en: "yr saving", th: "ปี ประหยัด" })}</p></div>
+                  <div className="text-right"><p className="tabular text-[13px] font-bold text-amber-300">{thbCompact(c.capex)}</p><p className="text-[9px] uppercase text-white/35">{L({ en: "budget", th: "งบ" })}</p></div>
+                  <span className="rounded-lg bg-white/[0.06] px-2 py-1 text-center text-[11px] tabular text-white/70">{c.paybackMo}{L({ en: "mo", th: "ด" })} · ROI {c.roi}%</span>
+                  <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/[0.06]"><ChevronDown size={15} className={cn("text-white/60 transition-transform", open && "rotate-180")} /></span>
+                </button>
+                <AnimatePresence initial={false}>
+                  {open ? (
+                    <motion.div key="bom" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} style={{ overflow: "hidden" }}>
+                      <div className="border-t border-white/8 px-4 pb-4 pt-3">
+                        {/* why + evidence — the diagnosis that justifies the spend */}
+                        <div className="mb-3 rounded-xl border border-amber-400/15 bg-amber-400/[0.04] p-3">
+                          <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300"><AlertTriangle size={12} /> {L({ en: "Why this is needed", th: "ทำไมต้องทำ" })}</div>
+                          <p className="text-[12px] leading-relaxed text-white/75">{L(c.why)}</p>
+                          <div className="mt-2 flex items-start gap-1.5 text-[10.5px] leading-relaxed text-white/45">
+                            <Gauge size={12} className="mt-0.5 shrink-0" />
+                            <span><span className="font-medium text-white/55">{L({ en: "Evidence", th: "หลักฐานที่เจอ" })}</span> · {L(c.evidence)} <span className="text-white/30">· {L({ en: "from the AI cameras + PLC", th: "จากกล้อง AI + PLC" })}</span></span>
+                          </div>
+                        </div>
+                        {/* expected result if the project is done */}
+                        <div className="mb-3 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.05] p-3">
+                          <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-300"><TrendingUp size={12} /> {L({ en: "If you do it — the result", th: "ถ้าทำ — ผลลัพธ์" })}</div>
+                          <ul className="space-y-1">
+                            <li className="flex items-start gap-1.5 text-[11.5px] leading-relaxed text-white/75"><ArrowRight size={11} className="mt-0.5 shrink-0 text-emerald-400" /> {L(c.outcome)}</li>
+                          </ul>
+                        </div>
+                        <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-indigo-300"><Package size={12} /> {L({ en: "Bill of materials", th: "รายการอะไหล่ (BOM)" })}</div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[520px] text-left text-[11.5px]">
+                            <thead><tr className="border-b border-white/10 text-[9.5px] uppercase tracking-wide text-white/40">
+                              <th className="py-1.5 pr-2 font-medium">{L({ en: "Part", th: "อะไหล่" })}</th>
+                              <th className="px-2 py-1.5 font-medium">{L({ en: "Brand", th: "แบรนด์" })}</th>
+                              <th className="px-2 py-1.5 font-medium">{L({ en: "Part No.", th: "Part No." })}</th>
+                              <th className="px-2 py-1.5 text-center font-medium">{L({ en: "Qty", th: "จำนวน" })}</th>
+                              <th className="px-2 py-1.5 text-right font-medium">{L({ en: "Total", th: "รวม" })}</th>
+                            </tr></thead>
+                            <tbody className="tabular">
+                              {c.parts.map((p, i) => (
+                                <tr key={i} className="border-b border-white/5">
+                                  <td className="py-2 pr-2 font-medium text-white/85">{L(p.name)}</td>
+                                  <td className="px-2 py-2 text-white/60">{p.brand}</td>
+                                  <td className="whitespace-nowrap px-2 py-2 font-mono text-[10.5px] text-brand-200">{p.partNo}</td>
+                                  <td className="px-2 py-2 text-center text-white/60">{p.qty}</td>
+                                  <td className="px-2 py-2 text-right text-white/80">{thbCompact(p.qty * p.unitPrice)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot className="tabular text-[11px]">
+                              <tr><td colSpan={4} className="py-1.5 pr-2 text-right text-white/45">{L({ en: "Parts subtotal", th: "รวมค่าอะไหล่" })}</td><td className="px-2 py-1.5 text-right text-white/70">{thbCompact(partsSum)}</td></tr>
+                              {install > 0 ? <tr><td colSpan={4} className="py-1.5 pr-2 text-right text-white/45">{L({ en: "Install & commissioning", th: "ติดตั้ง & คอมมิชชัน" })}</td><td className="px-2 py-1.5 text-right text-white/70">{thbCompact(install)}</td></tr> : null}
+                              <tr><td colSpan={4} className="py-1.5 pr-2 text-right text-[12px] font-semibold text-white/70">{L({ en: "Total budget", th: "งบรวม" })}</td><td className="px-2 py-1.5 text-right text-[12px] font-bold text-amber-300">{thbCompact(c.capex)}</td></tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                        <div className="mt-3 flex flex-wrap items-center gap-3">
+                          <span className="chip text-white/50"><Package size={11} /> {c.parts.length} {L({ en: "line items", th: "รายการ" })}</span>
+                          <div className="ml-auto flex items-center gap-2">
+                            {/* quote → SpareX — always available (procurement runs alongside the WO) */}
+                            {quoteSent.has(c.id) ? (
+                              <button onClick={() => setQuoteFor(c)} className="inline-flex items-center gap-1 rounded-lg border border-amber-400/30 bg-amber-400/10 px-2.5 py-1.5 text-[12px] font-medium text-amber-200 transition hover:bg-amber-400/15"><Check size={13} /> {L({ en: "RFQ sent · awaiting quote", th: "ส่งขอราคาแล้ว · รอใบเสนอราคา" })}</button>
+                            ) : (
+                              <button onClick={() => setQuoteFor(c)} className="inline-flex items-center gap-1 rounded-lg border border-brand-400/30 bg-brand-400/10 px-2.5 py-1.5 text-[12px] font-medium text-brand-200 transition hover:bg-brand-400/20"><FileText size={13} /> {L({ en: "Request quote → SpareX", th: "ขอใบเสนอราคา → SpareX" })}</button>
+                            )}
+                            {/* approve budget → install WO */}
+                            {done ? (
+                              <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1.5 text-[12px] font-medium text-emerald-300"><Check size={13} /> {L({ en: "Install WO raised", th: "สร้าง WO ติดตั้งแล้ว" })}{woFor(c.id) ? ` · ${woFor(c.id)!.id}` : ""}</span>
+                            ) : (
+                              <motion.button whileTap={{ scale: 0.97 }} onClick={() => raisePO(c)} className="btn-glow px-3 py-1.5 text-[12px]"><Plus size={13} /> {L({ en: "Approve → install WO", th: "อนุมัติงบ → WO ติดตั้ง" })}</motion.button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ) : null}
+                </AnimatePresence>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      ) : null}
+      {quoteFor ? <QuoteEmailModal project={quoteFor} L={L} onClose={() => setQuoteFor(null)} onSent={() => setQuoteSent((s) => new Set(s).add(quoteFor.id))} /> : null}
     </div>
   );
 }
@@ -1059,7 +1684,7 @@ function PdfPreview({ t, L, onClose }: { t: ReportTemplate; L: Tr; onClose: () =
           ]} />
         </Sec>
         <Sec no="03" title={L({ en: "Cost of poor quality · visible vs hidden", th: "ต้นทุนคุณภาพ · ที่เห็น vs ที่ซ่อน" })}>
-          <Tbl head={[{ en: "Item", th: "รา·าร" }, { en: "In the books?", th: "บัญชีเห็นมั้ย" }, { en: "Today", th: "วันนี้" }]} right={[2]}
+          <Tbl head={[{ en: "Item", th: "รายการ" }, { en: "In the books?", th: "บัญชีเห็นมั้ย" }, { en: "Today", th: "วันนี้" }]} right={[2]}
             rows={copqBreakdown.map((b) => [L(b.label), b.visible ? L({ en: "visible", th: "เห็น" }) : <span key="h" className="font-semibold text-[#b91c1c]">{L({ en: "hidden", th: "ซ่อน" })}</span>, thbCompact(b.value)])} />
           <p className="mt-1.5 text-[10px] text-[#64748b]">{L({ en: `${invisiblePct}% of today's quality cost never appears in accounting`, th: `${invisiblePct}% ของต้นทุนคุณภาพวันนี้ ไม่เคยโผล่ในบัญชี` })}</p>
         </Sec>
@@ -1090,7 +1715,7 @@ function PdfPreview({ t, L, onClose }: { t: ReportTemplate; L: Tr; onClose: () =
           <Tbl head={[{ en: "Factor", th: "ปัจจัย" }, { en: "Strength", th: "ความเกี่ยวข้อง" }, { en: "What AI found", th: "สิ่งที่ AI พบ" }]} right={[1]}
             rows={correlations.filter((c) => c.phase === 1).map((c) => [<B key="f">{L(c.factor)}</B>, `r = ${c.strength.toFixed(2)}`, L(c.finding)])} />
         </Sec>
-        <Sec no="04" title={L({ en: "The decision", th: "ทางแ·ของการตัดสินใจ" })}>
+        <Sec no="04" title={L({ en: "The decision", th: "ทางแก้ของการตัดสินใจ" })}>
           <Tbl head={[{ en: "Option", th: "ทางเลือก" }, { en: "Cost", th: "ต้นทุน" }, { en: "Outcome", th: "ผลลัพธ์" }]} right={[1]} rows={[
             [<B key="a">{L({ en: "Fix now — regrind the Press 03 die", th: "แก้ตอนนี้ — เจียรดาย Press 03" })}</B>, thbCompact(rcDim.fix.cost), L({ en: "dimensional defects ~-60% within one shift", th: "ดีเฟกต์ขนาดลด ~60% ภายใน 1 กะ" })],
             [L({ en: "Let it run", th: "ปล่อยไว้" }), <span key="r" className="font-semibold text-[#b91c1c]">{L({ en: "risk", th: "เสี่ยง" })} {thbCompact(rcDim.riskTHB)}</span>, L({ en: "defect passes 1.5% before shift end · export lot exposed", th: "ดีเฟกต์ทะลุ 1.5% ก่อนหมดกะ · ล็อตส่งออกเสี่ยง" })],
@@ -1103,7 +1728,7 @@ function PdfPreview({ t, L, onClose }: { t: ReportTemplate; L: Tr; onClose: () =
         <Sec no="01" title={L({ en: "Executive summary · by AI", th: "บทสรุปผู้บริหาร · โดย AI" })}>
           <P>{L({
             en: `Accounting sees ${thbCompact(copq.visible)} of scrap today — but the full quality cost is ${thbCompact(copq.today)}: ${invisiblePct}% hides in rework labour, machine time, re-inspection and material burn that no ledger line captures. At this run-rate that is ≈ ${thbCompact(copq.yr)} per year. The entire root-cause fix list costs ${thbCompact(fixTotal)} against ${thbCompact(riskTotal)} of accumulated risk.`,
-            th: `บัญชีเห็นค่าของเสียวันนี้แค่ ${thbCompact(copq.visible)} — แต่ต้นทุนคุณภาพจริงคือ ${thbCompact(copq.today)}: อีก ${invisiblePct}% ซ่อนอยู่ในค่าแรงงานแก้ เวลาเครื่อง การตรวจซ้ำ และวัตถุดิบที่เผาทิ้ง ซึ่งไม่มีบรรทัดไหนในบัญชีบันทึก คิดเป็นปีละ ≈ ${thbCompact(copq.yr)} ขณะที่ค่าแก้ต้นตอทั้งรา·ารรวมกันเพียง ${thbCompact(fixTotal)} เทียบความเสี่ยงสะสม ${thbCompact(riskTotal)}`,
+            th: `บัญชีเห็นค่าของเสียวันนี้แค่ ${thbCompact(copq.visible)} — แต่ต้นทุนคุณภาพจริงคือ ${thbCompact(copq.today)}: อีก ${invisiblePct}% ซ่อนอยู่ในค่าแรงงานแก้ เวลาเครื่อง การตรวจซ้ำ และวัตถุดิบที่เผาทิ้ง ซึ่งไม่มีบรรทัดไหนในบัญชีบันทึก คิดเป็นปีละ ≈ ${thbCompact(copq.yr)} ขณะที่ค่าแก้ต้นตอทั้งรายการรวมกันเพียง ${thbCompact(fixTotal)} เทียบความเสี่ยงสะสม ${thbCompact(riskTotal)}`,
           })}</P>
         </Sec>
         <Sec no="02" title={L({ en: "The money picture", th: "ภาพรวมตัวเงิน" })}>
@@ -1115,7 +1740,7 @@ function PdfPreview({ t, L, onClose }: { t: ReportTemplate; L: Tr; onClose: () =
           ]} />
         </Sec>
         <Sec no="03" title={L({ en: "Where the money goes", th: "เงินหายไปไหนบ้าง" })}>
-          <Tbl head={[{ en: "Cost item", th: "รา·ารต้นทุน" }, { en: "Status", th: "สถานะ" }, { en: "Today", th: "วันนี้" }, { en: "≈ / year", th: "≈ ต่อปี" }]} right={[2, 3]}
+          <Tbl head={[{ en: "Cost item", th: "รายการต้นทุน" }, { en: "Status", th: "สถานะ" }, { en: "Today", th: "วันนี้" }, { en: "≈ / year", th: "≈ ต่อปี" }]} right={[2, 3]}
             rows={copqBreakdown.map((b) => [L(b.label), b.visible ? L({ en: "in the books", th: "เห็นในบัญชี" }) : <span key="h" className="font-semibold text-[#b91c1c]">{L({ en: "hidden", th: "ซ่อน" })}</span>, thbCompact(b.value), thbCompact(b.value * 300)])} />
         </Sec>
         <Sec no="04" title={L({ en: "Financial recommendations", th: "ข้อเสนอแนะด้านการเงิน" })}>
@@ -1182,7 +1807,7 @@ function PdfPreview({ t, L, onClose }: { t: ReportTemplate; L: Tr; onClose: () =
         <Sec no="01" title={L({ en: "Executive summary · by AI", th: "บทสรุปผู้บริหาร · โดย AI" })}>
           <P>{L({
             en: `${defectsToday} defective parts across 7 defect classes today. The distribution is heavily concentrated: the top 3 classes cover ${paretoRows[2].cum}% of everything — fix those three sources and most of the problem disappears.`,
-            th: `วันนี้พบของเสีย ${defectsToday} ชิ้นจากดีเฟกต์ 7 ชนิด การกระจา·ระจุกตัวชัดเจน: แค่ 3 อันดับแรกครอบ ${paretoRows[2].cum}% ของทั้งหมด — แก้ 3 ต้นทางนี้ได้ ปัญหาส่วนใหญ่หายไปด้วย`,
+            th: `วันนี้พบของเสีย ${defectsToday} ชิ้นจากดีเฟกต์ 7 ชนิด การกระจายกระจุกตัวชัดเจน: แค่ 3 อันดับแรกครอบ ${paretoRows[2].cum}% ของทั้งหมด — แก้ 3 ต้นทางนี้ได้ ปัญหาส่วนใหญ่หายไปด้วย`,
           })}</P>
         </Sec>
         <Sec no="02" title={L({ en: "Pareto · all 7 classes", th: "Pareto · ครบทั้ง 7 ชนิด" })}>
@@ -1203,7 +1828,7 @@ function PdfPreview({ t, L, onClose }: { t: ReportTemplate; L: Tr; onClose: () =
         <Sec no="01" title={L({ en: "Executive summary · by AI", th: "บทสรุปผู้บริหาร · โดย AI" })}>
           <P>{L({
             en: "Two source-fixes closed in the last quarter keep proving themselves: the camera measures the defect rate before and after every closed work order, so the effect is fact, not opinion. Combined verified saving ≈ ฿1.4M/yr.",
-            th: "มาตรการแก้ต้นตอ 2 รา·ารที่ปิดไปไตรมาสล่าสุดยังยืนยันผลต่อเนื่อง: กล้องวัดอัตราดีเฟกต์ก่อนและหลังปิดใบสั่งงานทุกใบ ผลลัพธ์จึงเป็นข้อเท็จจริง ไม่ใช่ความเห็น รวมมูลค่าที่พิสูจน์แล้ว ≈ ฿1.4M/ปี",
+            th: "มาตรการแก้ต้นตอ 2 รายการที่ปิดไปไตรมาสล่าสุดยังยืนยันผลต่อเนื่อง: กล้องวัดอัตราดีเฟกต์ก่อนและหลังปิดใบสั่งงานทุกใบ ผลลัพธ์จึงเป็นข้อเท็จจริง ไม่ใช่ความเห็น รวมมูลค่าที่พิสูจน์แล้ว ≈ ฿1.4M/ปี",
           })}</P>
         </Sec>
         <Sec no="02" title={L({ en: "Verified results · before vs after", th: "ผลที่พิสูจน์แล้ว · ก่อน vs หลัง" })}>
@@ -1245,7 +1870,7 @@ function PdfPreview({ t, L, onClose }: { t: ReportTemplate; L: Tr; onClose: () =
         <Sec no="01" title={L({ en: "Executive summary · by AI", th: "บทสรุปผู้บริหาร · โดย AI" })}>
           <P>{L({
             en: `Every defect today is traceable: the photo's time-stamp pins the machine window, shift and product model for each piece. All ${defectsToday} defective parts were removed at the gate — ${escapes} escaped, keeping the clean streak at ${daysClean} days.`,
-            th: `ดีเฟกต์ทุกชิ้นของวันนี้สอบกลับได้: เวลาบนภาพระบุช่วงเดินเครื่อง กะ และรุ่นของแต่ละชิ้น ของเสี·ั้ง ${defectsToday} ชิ้นถูกคัดออกที่ด่านตรวจ — หลุด ${escapes} ชิ้น รักษาสถิติสะอาดต่อเนื่อง ${daysClean} วัน`,
+            th: `ดีเฟกต์ทุกชิ้นของวันนี้สอบกลับได้: เวลาบนภาพระบุช่วงเดินเครื่อง กะ และรุ่นของแต่ละชิ้น ของเสียทั้ง ${defectsToday} ชิ้นถูกคัดออกที่ด่านตรวจ — หลุด ${escapes} ชิ้น รักษาสถิติสะอาดต่อเนื่อง ${daysClean} วัน`,
           })}</P>
         </Sec>
         <Sec no="02" title={L({ en: "Trace table · defect → source → disposition", th: "ตารางสอบกลับ · ดีเฟกต์ → ต้นทาง → การจัดการ" })}>
@@ -1259,7 +1884,7 @@ function PdfPreview({ t, L, onClose }: { t: ReportTemplate; L: Tr; onClose: () =
 
       case "lot-cert": return (<>
         <Sec no="01" title={L({ en: "Lot information", th: "ข้อมูลล็อต" })}>
-          <Tbl head={[{ en: "Field", th: "รา·าร" }, { en: "Value", th: "ข้อมูล" }]} rows={[
+          <Tbl head={[{ en: "Field", th: "รายการ" }, { en: "Value", th: "ข้อมูล" }]} rows={[
             [L({ en: "Lot number", th: "เลขล็อต" }), <B key="v">EXPORT-4472</B>],
             [L({ en: "Product model", th: "รุ่นสินค้า" }), <B key="v">Model B</B>],
             [L({ en: "Quantity produced", th: "จำนวนผลิต" }), "12,400 " + L({ en: "pcs", th: "ชิ้น" })],
@@ -1285,7 +1910,7 @@ function PdfPreview({ t, L, onClose }: { t: ReportTemplate; L: Tr; onClose: () =
         <Sec no="04" title={L({ en: "Certification", th: "คำรับรอง" })}>
           <P>{L({
             en: "We certify that every part in this lot passed 100% AI visual inspection at the Final QC gate, and that all detected defective parts were removed before packing. This document was generated automatically by SpareX FactoryOS™ VisionIQ.",
-            th: "ขอรับรองว่าชิ้นงานทุกชิ้นในล็อตนี้ผ่านการตรวจด้วยภาพโดย AI ครบ 100% ณ ด่านตรวจ Final QC และของเสี·ี่ตรวจพบทั้งหมดถูกคัดออกก่อนการบรรจุ เอกสารนี้ออกโดยอัตโนมัติจากระบบ SpareX FactoryOS™ VisionIQ",
+            th: "ขอรับรองว่าชิ้นงานทุกชิ้นในล็อตนี้ผ่านการตรวจด้วยภาพโดย AI ครบ 100% ณ ด่านตรวจ Final QC และของเสียที่ตรวจพบทั้งหมดถูกคัดออกก่อนการบรรจุ เอกสารนี้ออกโดยอัตโนมัติจากระบบ SpareX FactoryOS™ VisionIQ",
           })}</P>
         </Sec>
       </>);
@@ -1305,7 +1930,7 @@ function PdfPreview({ t, L, onClose }: { t: ReportTemplate; L: Tr; onClose: () =
             [<B key="d">D4</B>, L({ en: `Root cause: die wear (confidence ${rcDim.confidence}% — linear drift +0.008mm / 1,000 strokes)`, th: `รากสาเหตุ: ดายสึก (มั่นใจ ${rcDim.confidence}% — ไต่เป็นเส้นตรง +0.008mm ต่อ 1,000 ปั๊ม)` }), <St key="s" ok />],
             [<B key="d">D5</B>, L({ en: `Corrective action: regrind & shim the Press 03 die (${thbCompact(rcDim.fix.cost)})`, th: `มาตรการแก้ถาวร: เจียรดาย Press 03 + ปรับชิม (${thbCompact(rcDim.fix.cost)})` }), <St key="s" ok />],
             [<B key="d">D6</B>, L({ en: "Verification: gate re-measures 3 shifts after the fix (automatic)", th: "ยืนยันผล: ด่านตรวจวัดซ้ำ 3 กะหลังซ่อม (อัตโนมัติ)" }), <St key="s" ok={false} />],
-            [<B key="d">D7</B>, L({ en: "Prevention: die-change rule every ~9,000 strokes + early-wear alert", th: "ป้องกันซ้ำ: ตั้งเกณฑ์เปลี่ยนดา·ุก ~9,000 ปั๊ม + แจ้งเตือนสึกล่วงหน้า" }), <St key="s" ok={false} />],
+            [<B key="d">D7</B>, L({ en: "Prevention: die-change rule every ~9,000 strokes + early-wear alert", th: "ป้องกันซ้ำ: ตั้งเกณฑ์เปลี่ยนดายทุก ~9,000 ปั๊ม + แจ้งเตือนสึกล่วงหน้า" }), <St key="s" ok={false} />],
             [<B key="d">D8</B>, L({ en: "Closure & team recognition: awaiting plant-manager sign-off", th: "ปิดเคสและชื่นชมทีม: รอผู้จัดการโรงงานลงนาม" }), <St key="s" ok={false} />],
           ]} />
         </Sec>
@@ -1315,13 +1940,13 @@ function PdfPreview({ t, L, onClose }: { t: ReportTemplate; L: Tr; onClose: () =
         <Sec no="01" title={L({ en: "Executive summary · by AI", th: "บทสรุปผู้บริหาร · โดย AI" })}>
           <P>{L({
             en: `Analysis of today's ${inspectedToday.toLocaleString()} inspected parts indicates overall quality within limits (FPY ${fpy}%), with one signal that needs action fast: dimensional defects from Stamping Press 03 are climbing with die wear and now account for 34% of all defects, and night shift B runs a defect rate 2.1× the morning shift. Today's loss totals ${thbCompact(copq.today)}. If the root cause is not fixed, accumulated risk reaches ฿1.9M. Key recommendation: regrind the Press 03 die (฿85K) within 18 hours — 22× cheaper than letting it run.`,
-            th: `การวิเคราะห์ภาพถ่ายชิ้นงาน ${inspectedToday.toLocaleString()} ชิ้นของวันนี้ชี้ว่า คุณภาพโดยรวมยังอยู่ในเกณฑ์ (FPY ${fpy}%) แต่มีสัญญาณหนึ่งที่ต้องจัดการเร็ว: ดีเฟกต์เรื่องขนาดจาก Stamping Press 03 กำลังไต่ขึ้นตามการสึกของดาย คิดเป็น 34% ของของเสี·ั้งหมด และกะดึก B มีอัตราของเสียสูงเป็น 2.1 เท่าของกะเช้า ความเสียหายวันนี้รวม ${thbCompact(copq.today)} หากไม่แก้ที่ต้นตอ ความเสี่ยงสะสมจะถึง ฿1.9M ข้อเสนอหลัก: เจียรดาย Press 03 (฿85K) ภายใน 18 ชั่วโมง — ถูกกว่าปล่อยไว้ 22 เท่า`,
+            th: `การวิเคราะห์ภาพถ่ายชิ้นงาน ${inspectedToday.toLocaleString()} ชิ้นของวันนี้ชี้ว่า คุณภาพโดยรวมยังอยู่ในเกณฑ์ (FPY ${fpy}%) แต่มีสัญญาณหนึ่งที่ต้องจัดการเร็ว: ดีเฟกต์เรื่องขนาดจาก Stamping Press 03 กำลังไต่ขึ้นตามการสึกของดาย คิดเป็น 34% ของของเสียทั้งหมด และกะดึก B มีอัตราของเสียสูงเป็น 2.1 เท่าของกะเช้า ความเสียหายวันนี้รวม ${thbCompact(copq.today)} หากไม่แก้ที่ต้นตอ ความเสี่ยงสะสมจะถึง ฿1.9M ข้อเสนอหลัก: เจียรดาย Press 03 (฿85K) ภายใน 18 ชั่วโมง — ถูกกว่าปล่อยไว้ 22 เท่า`,
           })}</P>
         </Sec>
         <Sec no="02" title={L({ en: "Today's key numbers", th: "ตัวเลขหลักวันนี้" })}>
           <Kpis items={[
             [{ en: "Inspected", th: "ตรวจทั้งหมด" }, inspectedToday.toLocaleString(), { en: "pcs · 100% of output", th: "ชิ้น · ครบ 100% ของยอดผลิต" }],
-            [{ en: "Defects caught", th: "ของเสี·ี่จับได้" }, defectsToday.toLocaleString(), { en: `pcs · ${defectRatePpm.toLocaleString()} ppm`, th: `ชิ้น · ${defectRatePpm.toLocaleString()} ppm` }, "#b91c1c"],
+            [{ en: "Defects caught", th: "ของเสียที่จับได้" }, defectsToday.toLocaleString(), { en: `pcs · ${defectRatePpm.toLocaleString()} ppm`, th: `ชิ้น · ${defectRatePpm.toLocaleString()} ppm` }, "#b91c1c"],
             [{ en: "Scrap · rework", th: "คัดทิ้ง · ส่งแก้" }, `${totalScrap} · ${totalRework}`, { en: "per disposition rules", th: "ตามกติกาการคัด" }],
             [{ en: "Money lost", th: "เงินที่เสีย" }, thbCompact(copq.today), { en: `${invisiblePct}% invisible to accounting`, th: `${invisiblePct}% มองไม่เห็นในบัญชี` }, "#b91c1c"],
           ]} />
@@ -1466,7 +2091,7 @@ function ReportView({ L }: { L: Tr }) {
   const chipCls = (on: boolean) => cn("flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11.5px] font-medium transition", on ? "border-brand-400/50 bg-brand-400/10 text-brand-200" : "border-white/10 bg-white/[0.02] text-white/50 hover:text-white/75");
   return (
     <div className="space-y-6">
-      <Panel title={L({ en: "Generate a report", th: "ออกรายงาน" })} sub={L({ en: "every report opens with a 1-page AI executive summary · auto-delivery goes to the Email/LINE recipients set in Settings", th: "ทุกฉบับขึ้นต้นด้วยบทสรุปผู้บริหารที่ AI เขียนให้ 1 หน้า · การส่งอัตโนมัติจะเข้า Email/LINE ตามรายชื่อในแท็บตั้งค่า" })}>
+      <Panel title={L({ en: "Generate a Report", th: "ออกรายงาน" })} sub={L({ en: "every report opens with a 1-page AI executive summary · auto-delivery goes to the Email/LINE recipients set in Settings", th: "ทุกฉบับขึ้นต้นด้วยบทสรุปผู้บริหารที่ AI เขียนให้ 1 หน้า · การส่งอัตโนมัติจะเข้า Email/LINE ตามรายชื่อในแท็บตั้งค่า" })}>
         {/* group chips — pick who the report is for */}
         <div className="mb-2 flex flex-wrap items-center gap-1.5">
           <button onClick={() => setGrp("all")} className={chipCls(grp === "all")}>{L({ en: "All", th: "ทั้งหมด" })} <span className="rounded bg-white/10 px-1 text-[10px] tabular">{reportTemplates.length}</span></button>
@@ -1544,7 +2169,7 @@ function NotifySettings({ L }: { L: Tr }) {
   const test = (id: string) => { setTested(id); setTimeout(() => setTested((v) => (v === id ? null : v)), 2200); };
   const field = "rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-[12px] text-white placeholder:text-white/25 focus:border-brand-400/40 focus:outline-none";
   return (
-    <Panel title={L({ en: "Notify the right people · Email + LINE", th: "แจ้งเตือนผู้เกี่ยวข้อง · Email + LINE" })} sub={L({ en: "who hears about what — sent automatically the moment it happens", th: "ใครควรรู้เรื่องไหน — ระบบส่งให้เองทันทีที่เกิดเหตุการณ์" })} extra={<div className="flex items-center gap-2"><span className="flex items-center gap-1 rounded-full border border-emerald-400/25 bg-emerald-500/[0.08] px-2 py-0.5 text-[10px] font-medium text-emerald-300"><Check size={11} /> {L({ en: "saves instantly", th: "บันทึกทันที" })}</span><span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-400/12 text-brand-300"><Bell size={16} /></span></div>}>
+    <Panel title={L({ en: "Notify the Right People", th: "แจ้งเตือนผู้เกี่ยวข้อง" })} sub={L({ en: "Email + LINE · who hears about what — sent automatically the moment it happens", th: "Email + LINE · ใครควรรู้เรื่องไหน — ระบบส่งให้เองทันทีที่เกิดเหตุการณ์" })} extra={<div className="flex items-center gap-2"><span className="flex items-center gap-1 rounded-full border border-emerald-400/25 bg-emerald-500/[0.08] px-2 py-0.5 text-[10px] font-medium text-emerald-300"><Check size={11} /> {L({ en: "saves instantly", th: "บันทึกทันที" })}</span><span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-400/12 text-brand-300"><Bell size={16} /></span></div>}>
       {/* ties the scrap event to the alarm flags set in the rules above */}
       <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-400/20 bg-amber-500/[0.05] px-3 py-2">
         <AlertTriangle size={13} className="mt-0.5 shrink-0" style={{ color: "var(--c-amber-strong)" }} />
@@ -1660,7 +2285,7 @@ function SettingsView({ L }: { L: Tr }) {
       <div className="flex items-center gap-2 rounded-xl border border-brand-400/20 bg-brand-400/[0.05] px-4 py-2.5"><Settings2 size={16} className="shrink-0 text-brand-300" /><p className="text-[12px] font-medium text-brand-200">{L({ en: "These rules are what the gate follows automatically on every part. Edit the values below, then press Save — everything is stored on this device until MES/ERP is connected.", th: "กติกาที่ตั้งตรงนี้คือสิ่งที่ด่านตรวจใช้ตัดสินอัตโนมัติกับทุกชิ้น แก้ค่าด้านล่างแล้วกด บันทึก — ระบบเก็บไว้ในเครื่องนี้ จนกว่าจะเชื่อม MES/ERP" })}</p></div>
 
       {/* disposition rules — found a defect: scrap or rework? */}
-      <Panel title={L({ en: "Disposition rules · Scrap or Rework", th: "กติกาการคัด · Scrap หรือ Rework" })} sub={L({ en: "what the gate should do per defect type, by the severity the camera measures", th: "เจอดีเฟกต์แล้วให้ด่านทำอะไร — ตามชนิดและความรุนแรงที่กล้องวัดได้" })}>
+      <Panel title={L({ en: "Disposition Rules", th: "กติกาการคัด" })} sub={L({ en: "Scrap or Rework · what the gate should do per defect type, by the severity the camera measures", th: "Scrap หรือ Rework · เจอดีเฟกต์แล้วให้ด่านทำอะไร — ตามชนิดและความรุนแรงที่กล้องวัดได้" })}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="text-left text-[11px] uppercase tracking-wider text-white/40">
@@ -1707,7 +2332,7 @@ function SettingsView({ L }: { L: Tr }) {
       </Panel>
 
       {/* cost assumptions — same store the Analyze tab reads */}
-      <Panel title={L({ en: "Cost per defect", th: "ต้นทุนต่อดีเฟกต์" })} sub={L({ en: "drives every ฿ figure on the Analyze tab · editable until ERP is connected", th: "ใช้คำนวณเงินทุกตัวในหน้าวิเคราะห์ · แก้ได้จนกว่าจะเชื่อม ERP" })}>
+      <Panel title={L({ en: "Cost per Defect", th: "ต้นทุนต่อดีเฟกต์" })} sub={L({ en: "drives every ฿ figure on the Analyze tab · editable until ERP is connected", th: "ใช้คำนวณเงินทุกตัวในหน้าวิเคราะห์ · แก้ได้จนกว่าจะเชื่อม ERP" })}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="text-left text-[11px] uppercase tracking-wider text-white/40">
@@ -1749,7 +2374,7 @@ function SettingsView({ L }: { L: Tr }) {
             {dirtyCount > 0 ? (
               <>
                 <span className="relative flex h-2 w-2 shrink-0"><span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-70" style={{ backgroundColor: "var(--c-amber-strong)" }} /><span className="relative inline-flex h-2 w-2 rounded-full" style={{ backgroundColor: "var(--c-amber-strong)" }} /></span>
-                <span className="truncate font-medium" style={{ color: "var(--c-amber-strong)" }}>{L({ en: `${dirtyCount} unsaved change${dirtyCount > 1 ? "s" : ""} — press Save to apply`, th: `ยังไม่บันทึก ${dirtyCount} รา·าร — กดบันทึกเพื่อใช้งาน` })}</span>
+                <span className="truncate font-medium" style={{ color: "var(--c-amber-strong)" }}>{L({ en: `${dirtyCount} unsaved change${dirtyCount > 1 ? "s" : ""} — press Save to apply`, th: `ยังไม่บันทึก ${dirtyCount} รายการ — กดบันทึกเพื่อใช้งาน` })}</span>
               </>
             ) : flash || savedAt ? (
               <><Check size={15} className="shrink-0 text-emerald-300" /><span className="truncate font-medium text-emerald-300">{L({ en: "All changes saved", th: "บันทึกครบแล้ว" })}</span>{savedAt ? <span className="shrink-0 text-white/40">· {savedAt}</span> : null}</>
@@ -1758,7 +2383,7 @@ function SettingsView({ L }: { L: Tr }) {
             )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <button onClick={discard} disabled={!dirtyCount} className={cn("rounded-lg px-3 py-1.5 text-[12px] font-medium transition", dirtyCount ? "text-white/60 hover:bg-white/5 hover:text-white/85" : "cursor-not-allowed text-white/25")}>{L({ en: "Discard", th: "·เลิก" })}</button>
+            <button onClick={discard} disabled={!dirtyCount} className={cn("rounded-lg px-3 py-1.5 text-[12px] font-medium transition", dirtyCount ? "text-white/60 hover:bg-white/5 hover:text-white/85" : "cursor-not-allowed text-white/25")}>{L({ en: "Discard", th: "ยกเลิก" })}</button>
             <button onClick={save} disabled={!dirtyCount} className={cn("flex items-center gap-1.5 whitespace-nowrap rounded-lg px-4 py-1.5 text-[12.5px] font-semibold transition", dirtyCount ? "btn-glow" : "cursor-not-allowed bg-white/5 text-white/30")}><Save size={13} /> {L({ en: "Save", th: "บันทึก" })}</button>
           </div>
         </div>
@@ -1771,53 +2396,57 @@ function SettingsView({ L }: { L: Tr }) {
 }
 
 /* ══════════════════════════ workspace ══════════════════════════ */
-type TabId = "overview" | "monitor" | "analyze" | "learning" | "act" | "report" | "settings";
+
+/** Small secondary toggle for steps that host two views (e.g. Analysis | AI Learning). */
+function SubChips<T extends string>({ value, onChange, items, L }: { value: T; onChange: (v: T) => void; items: { id: T; icon: typeof Brain; label: LZ }[]; L: Tr }) {
+  return (
+    <div className="mb-4 flex items-center gap-1.5">
+      {items.map((it) => { const on = value === it.id; return (
+        <button key={it.id} onClick={() => onChange(it.id)} className={cn("flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium transition", on ? "border-brand-400/40 bg-brand-400/12 text-brand-100" : "border-white/10 bg-white/[0.02] text-white/50 hover:text-white/80")}>
+          <it.icon size={13} className={on ? "text-brand-300" : "text-white/40"} />{L(it.label)}
+        </button>
+      ); })}
+    </div>
+  );
+}
 
 export function VisionWorkspace() {
   const { locale } = useI18n();
   const L: Tr = (o) => (locale === "th" ? o.th : o.en);
-  const [tab, setTab] = useState<TabId>("overview");
-  const wos = useWorkOrders();
+  const [step, setStep] = useState(0);
+  const [analysisSub, setAnalysisSub] = useState<"analysis" | "learning">("analysis");
+  const [reportSub, setReportSub] = useState<"report" | "settings">("report");
 
-  const raise = (a: Action) => {
-    const d = defects.find((x) => x.id === a.defectId)!;
-    // saving = reduction of THIS defect's own annual cost (not the whole fleet COPQ)
-    const annualSaving = Math.round(defectCost(d) * 300 * a.reduction / 100);
-    createWorkOrder({ id: `vision-${a.id}`, code: `VIS-${a.id.toUpperCase()}`, title: a.title, asset: { en: d.machine, th: d.machine }, severity: a.priority === "P1" ? "critical" : "warning", capex: a.capex, annualSaving, partsCount: a.parts }, "production");
-  };
-
-  const TABS: { id: TabId; icon: typeof LayoutDashboard; label: LZ; q: LZ; flag?: boolean }[] = [
-    { id: "overview", icon: LayoutDashboard, label: { en: "Overview", th: "ภาพรวม" }, q: { en: "How healthy is production?", th: "ภาพรวมการผลิตดีแค่ไหน?" } },
-    { id: "monitor", icon: Eye, label: { en: "Monitor", th: "เฝ้าดู" }, q: { en: "What is happening now?", th: "ตอนนี้เกิดอะไรขึ้น?" } },
-    { id: "analyze", icon: Brain, label: { en: "Analyze", th: "วิเคราะห์" }, q: { en: "Why is it happening?", th: "ทำไมถึงเกิด?" }, flag: true },
-    { id: "learning", icon: GraduationCap, label: { en: "AI Learning", th: "สอน AI" }, q: { en: "Teach the AI to recognize your defects", th: "สอนให้ AI รู้จักดีเฟกต์ของโรงงานคุณ" } },
-    { id: "act", icon: Zap, label: { en: "Act", th: "ลงมือ" }, q: { en: "What should I do?", th: "แล้วต้องทำอะไรต่อ?" } },
-    { id: "report", icon: FileText, label: { en: "Report", th: "รายงาน" }, q: { en: "Prove the impact", th: "พิสูจน์ผลที่ได้จริง" } },
-    { id: "settings", icon: Settings2, label: { en: "Settings", th: "ตั้งค่า" }, q: { en: "Set the rules the gate follows", th: "กำหนดกติกาให้ด่านตรวจทำตาม" } },
-  ];
-  const cur = TABS.find((t) => t.id === tab)!;
+  const goAnalysis = () => { setAnalysisSub("analysis"); setStep(2); };
 
   return (
     <main className="p-5 lg:p-8">
-      <div className="mb-1 flex gap-0.5 overflow-x-auto border-b border-white/10 scrollbar-hide">
-        {TABS.map((it) => { const on = tab === it.id; return (
-          <button key={it.id} onClick={() => setTab(it.id)} className={cn("relative flex shrink-0 items-center gap-2 px-3.5 py-2.5 text-sm font-medium transition", on ? "text-white" : "text-white/50 hover:text-white/80")}>
-            <it.icon size={15} className={on ? "text-brand-300" : "text-white/40"} /><span className="whitespace-nowrap">{L(it.label)}</span>
-            {it.flag ? <span className="rounded bg-brand-400/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-brand-200">AI</span> : null}
-            {on ? <motion.span layoutId="vision-tab-underline" className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-brand-400" transition={{ type: "spring", stiffness: 500, damping: 38 }} /> : null}
-          </button>
-        ); })}
+      <div className="mb-5">
+        <WorkflowBar step={step} setStep={setStep} L={L} />
       </div>
-      <p className="mb-5 mt-2 text-[12px] italic text-white/40">"{L(cur.q)}"</p>
 
-      <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        {tab === "overview" ? <OverviewView L={L} onAnalyze={() => setTab("analyze")} onMonitor={() => setTab("monitor")} /> : null}
-        {tab === "monitor" ? <MonitorView L={L} /> : null}
-        {tab === "analyze" ? <AnalyzeView L={L} onAct={() => setTab("act")} /> : null}
-        {tab === "learning" ? <DefectLearning L={L} /> : null}
-        {tab === "act" ? <ActView wos={wos} onRaise={raise} L={L} /> : null}
-        {tab === "report" ? <ReportView L={L} /> : null}
-        {tab === "settings" ? <SettingsView L={L} /> : null}
+      <motion.div key={step} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+        {step === 0 ? <MonitorView L={L} onInvestigate={goAnalysis} /> : null}
+        {step === 1 ? <OverviewView L={L} onAnalyze={goAnalysis} onMonitor={() => setStep(0)} /> : null}
+        {step === 2 ? (
+          <div>
+            <SubChips value={analysisSub} onChange={setAnalysisSub} L={L} items={[
+              { id: "analysis", icon: Brain, label: { en: "Analysis", th: "วิเคราะห์" } },
+              { id: "learning", icon: GraduationCap, label: { en: "AI Learning", th: "สอน AI" } },
+            ]} />
+            {analysisSub === "analysis" ? <AnalyzeView L={L} onAct={() => setStep(3)} /> : <DefectLearning L={L} />}
+          </div>
+        ) : null}
+        {step === 3 ? <ActView L={L} /> : null}
+        {step === 4 ? (
+          <div>
+            <SubChips value={reportSub} onChange={setReportSub} L={L} items={[
+              { id: "report", icon: FileText, label: { en: "Report", th: "รายงาน" } },
+              { id: "settings", icon: Settings2, label: { en: "Settings", th: "ตั้งค่า" } },
+            ]} />
+            {reportSub === "report" ? <ReportView L={L} /> : <SettingsView L={L} />}
+          </div>
+        ) : null}
       </motion.div>
     </main>
   );

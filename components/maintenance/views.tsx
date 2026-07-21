@@ -117,7 +117,7 @@ export function WorkOrdersView() {
   const tr = useTr();
   const wos = predictedFailures().map((a, i) => ({ id: `WO-${1042 + i}`, asset: a.name, status: a.status, task: taskFor(`${a.type} ${a.name}`), due: `${a.rulDays}d`, prio: a.status === "critical" ? "P1" : "P2", parts: i === 3 || i === 5 ? "1 on order" : "In stock" }));
   return (
-    <Panel title={tr("Work orders")} extra={<span className="chip border-accent-500/30 bg-accent-500/10 text-accent-400">{tr("AI-scheduled")}</span>}>
+    <Panel title={tr("Work Orders")} extra={<span className="chip border-accent-500/30 bg-accent-500/10 text-accent-400">{tr("AI-scheduled")}</span>}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="text-left text-[11px] uppercase tracking-wider text-white/40"><th className="px-2 py-3 font-medium">WO</th><th className="px-2 py-3 font-medium">{tr("Asset / Task")}</th><th className="px-2 py-3 font-medium">{tr("Priority")}</th><th className="px-2 py-3 font-medium">{tr("Parts")}</th><th className="px-2 py-3 font-medium text-right">{tr("Due")}</th></tr></thead>
@@ -170,12 +170,12 @@ function SparesTable({ items }: { items: typeof spareParts }) {
 }
 export function InventoryView() {
   const tr = useTr();
-  return <Panel title={tr("Spare-parts inventory")} extra={<span className="chip">{spareParts.length} SKUs</span>}><SparesTable items={spareParts} /></Panel>;
+  return <Panel title={tr("Spare-Parts Inventory")} extra={<span className="chip">{spareParts.length} SKUs</span>}><SparesTable items={spareParts} /></Panel>;
 }
 export function CriticalSpareView() {
   const tr = useTr();
   const items = spareParts.filter((p) => p.crit || sparePartStatus(p) !== "ok");
-  return <Panel title={tr("Critical spares")} extra={<span className="chip text-rose-200">{items.length} {tr("flagged")}</span>}><SparesTable items={items} /></Panel>;
+  return <Panel title={tr("Critical Spares")} extra={<span className="chip text-rose-200">{items.length} {tr("flagged")}</span>}><SparesTable items={items} /></Panel>;
 }
 export function ReorderView() {
   const tr = useTr();
@@ -188,7 +188,7 @@ export function ReorderView() {
         <KpiCard label={tr("Out of Stock")} value={`${spareParts.filter((p) => p.stock === 0).length}`} accent="#f59e0b" />
         <KpiCard label={tr("Est. PO Value")} value="฿420k" accent="#60a5fa" />
       </div>
-      <Panel title={tr("AI reorder recommendation")} extra={<span className="chip border-accent-500/30 bg-accent-500/10 text-accent-400">{tr("auto-drafted")}</span>}>
+      <Panel title={tr("AI Reorder Recommendation")} extra={<span className="chip border-accent-500/30 bg-accent-500/10 text-accent-400">{tr("auto-drafted")}</span>}>
         <ul className="space-y-2.5">
           {reorder.map((p) => (
             <li key={p.name} className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.02] p-3.5 sm:flex-row sm:items-center">

@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  AlertTriangle, ArrowUp, Bot, Check, Pause, Play, ShieldCheck, Sparkles, Zap,
-  Construction, Wrench,
+  AlertTriangle, ArrowUp, ArrowDown, Bot, Check, Pause, Play, ShieldCheck, Sparkles, Zap,
+  Construction, Wrench, Eye, MousePointerClick, ClipboardCheck, History, Radio, ArrowRight, PencilRuler, Tv,
 } from "lucide-react";
+import Link from "next/link";
 import { DigitalTwin } from "@/components/twin/DigitalTwin";
+import { TwinBuilder } from "@/components/twin/TwinBuilder";
+import { loadLayout, toAssets, toBuildings, poleOf, type TwinLayout } from "@/lib/twin-builder";
 import { ProcessFlow3D } from "@/components/optwin/ProcessFlow3D";
 import { KpiCard } from "@/components/os/KpiCard";
 import { HBars } from "@/components/os/charts";
@@ -15,20 +18,24 @@ import { useTr } from "@/lib/autotranslate";
 import { useI18n } from "@/lib/i18n";
 import { formatTHB, formatCompact, openCopilot, cn } from "@/lib/utils";
 import {
-  assets, countByStatus, countByCategory, predictedFailures,
+  assets, buildings, countByStatus, countByCategory, predictedFailures,
   STATUS_COLOR, STATUS_LABEL, CATEGORY_LABEL,
 } from "@/lib/factory";
 import { machineEnergy } from "@/lib/energy";
 import { opportunities, totalOpportunity, topRisks } from "@/lib/brain";
 import {
-  twinInsights, twinActions, simDefaults, type TwinActionStatus,
+  twinActions, simDefaults, replayEvents, replayStatusesAt, replayClock,
+  healthDelta7d, twinSystems, riskImpact, twinAiInsights, chillerAnalysis,
+  type TwinActionStatus, type ReplayTone, type TwinSeverity,
 } from "@/lib/optwin";
+import { Sparkline } from "@/components/ui/Sparkline";
+import { uibus } from "@/lib/uibus";
 
 /* helpers */
-function Panel({ title, extra, children }: { title?: string; extra?: React.ReactNode; children: React.ReactNode }) {
+function Panel({ title, sub, extra, children }: { title?: string; sub?: string; extra?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="panel p-6">
-      {title ? (<div className="mb-4 flex items-center justify-between gap-3"><h3 className="font-semibold">{title}</h3>{extra}</div>) : null}
+      {title ? (<div className="mb-4 flex items-center justify-between gap-3"><div className="min-w-0"><h3 className="font-semibold leading-tight text-white">{title}</h3>{sub ? <p className="mt-0.5 truncate text-[11px] leading-tight text-white/40">{sub}</p> : null}</div>{extra}</div>) : null}
       {children}
     </div>
   );
@@ -103,8 +110,147 @@ export function FactoryOverviewView() {
 }
 
 /* ----------------------------------------------------------- 2 3D map */
+
+/** the module's hero story in one strip: see it coming → click & assign → WO done */
+function HeroFlowStrip({ th }: { th: boolean }) {
+  const steps = [
+    { icon: Eye, t: th ? "เห็นก่อนพัง" : "See it before it fails", d: th ? "AI คาดการณ์ล่วงหน้า ~3 วัน" : "AI predicts ~3 days ahead" },
+    { icon: MousePointerClick, t: th ? "คลิก & มอบหมาย" : "Click & assign", d: th ? "เลือกเครื่องใน 3D สั่งช่างได้ทันที" : "Pick the machine in 3D, dispatch a tech" },
+    { icon: ClipboardCheck, t: th ? "เกิด Work Order" : "Work Order raised", d: th ? "พร้อมอะไหล่และช่วงซ่อมตามแผน" : "Parts staged, fixed in a planned window" },
+  ];
+  const focusCritical = () =>
+    window.dispatchEvent(new CustomEvent("factoryos:focus-asset", { detail: { id: "chiller-09" } }));
+  return (
+    <section className="panel flex flex-wrap items-center gap-x-6 gap-y-3 px-5 py-3.5">
+      {steps.map((s, i) => (
+        <div key={s.t} className="flex items-center gap-2.5">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-brand-400/25 bg-brand-400/10 text-brand-300"><s.icon size={15} /></span>
+          <div>
+            <p className="text-[13px] font-medium leading-tight">{i + 1}. {s.t}</p>
+            <p className="text-[11px] leading-tight text-white/45">{s.d}</p>
+          </div>
+        </div>
+      ))}
+      <button onClick={focusCritical} className="btn-glow ml-auto px-3.5 py-2 text-xs">
+        {th ? "ดูเครื่องที่กำลังจะเสีย" : "Show the machine about to fail"} <ArrowRight size={13} />
+      </button>
+    </section>
+  );
+}
+
+const TONE_DOT: Record<ReplayTone, string> = { ok: "bg-status-ok", warn: "bg-status-warn", crit: "bg-status-crit" };
+
 export function MapView() {
-  return <DigitalTwin height="h-[540px] sm:h-[660px]" />;
+  const { locale } = useI18n();
+  const th = locale === "th";
+  const [mode, setMode] = useState<"live" | "replay">("live");
+  const [t, setT] = useState(24);
+  // user-authored layout (Twin Builder) — when active it replaces the mock plant
+  const [layout, setLayout] = useState<TwinLayout | null>(null);
+  const [builderOpen, setBuilderOpen] = useState(false);
+  useEffect(() => { setLayout(loadLayout()); }, []);
+  const custom = layout?.active && layout.machines.length ? layout : null;
+  const statuses = mode === "replay" && !custom ? replayStatusesAt(t) : undefined;
+
+  // view scope — isolate one Line/Area in the 3D (null = whole plant)
+  const [viewZone, setViewZone] = useState<string | null>(null);
+  const zonesList = custom
+    ? custom.zones.map((z) => ({ id: z.uid, name: z.name }))
+    : buildings.map((b) => ({ id: b.id, name: b.name }));
+  const twinAssets = custom
+    ? toAssets(custom).filter((a) => !viewZone || a.buildingId === viewZone)
+    : viewZone
+      ? assets.filter((a) => a.buildingId === viewZone)
+      : undefined;
+  const twinBuildings = custom
+    ? toBuildings(custom).filter((b) => !viewZone || b.id === viewZone)
+    : viewZone
+      ? buildings.filter((b) => b.id === viewZone)
+      : undefined;
+  return (
+    <div className="space-y-4">
+      <HeroFlowStrip th={th} />
+
+      {/* time replay — the twin as a flight recorder for the last 24 h.
+          (hidden on a user layout: the replay story belongs to the mock plant) */}
+      <section className="panel px-5 py-3.5">
+        <div className="flex flex-wrap items-center gap-3">
+          {custom ? (
+            <span className="flex items-center gap-1.5 text-[12px] text-white/60">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              {th ? `ผังโรงงานของคุณ · ${toAssets(custom).length} เครื่อง · ${custom.zones.length} โซน` : `Your plant layout · ${toAssets(custom).length} machines · ${custom.zones.length} zones`}
+            </span>
+          ) : null}
+          <button
+            onClick={() => setBuilderOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-brand-400/30 bg-brand-400/[0.08] px-3 py-1.5 text-xs font-medium text-brand-200 transition hover:bg-brand-400/[0.15]"
+          >
+            <PencilRuler size={13} /> {custom ? (th ? "แก้ไขผังโรงงาน" : "Edit plant layout") : (th ? "จัดผังโรงงานของฉัน" : "Build my plant layout")}
+          </button>
+          {/* per-line shop-floor displays — a TV bookmarks one of these URLs */}
+          {(custom ? custom.zones.map((z) => z.name) : ["Production Hall", "Facility & Utility"]).map((zn) => (
+            <Link key={zn} href={`/os/twin/monitor?zone=${encodeURIComponent(zn)}`}
+              className="flex items-center gap-1.5 rounded-lg border border-white/12 bg-white/[0.02] px-3 py-1.5 text-xs text-white/60 transition hover:border-emerald-400/40 hover:text-white">
+              <Tv size={12} /> {zn}
+            </Link>
+          ))}
+          {/* view scope — isolate one Line/Area right here in the 3D */}
+          {zonesList.length ? (
+            <div className="flex flex-wrap items-center gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
+              <span className="flex items-center gap-1 px-1.5 text-[11px] text-white/40"><Eye size={11} /> {th ? "ดูเฉพาะ" : "View"}</span>
+              <button onClick={() => setViewZone(null)} className={cn("rounded-md px-2.5 py-1 text-xs transition", !viewZone ? "bg-white/10 text-white" : "text-white/50 hover:text-white")}>{th ? "ทั้งโรงงาน" : "Whole plant"}</button>
+              {zonesList.map((z) => (
+                <button key={z.id} onClick={() => setViewZone(viewZone === z.id ? null : z.id)} className={cn("rounded-md px-2.5 py-1 text-xs transition", viewZone === z.id ? "bg-brand-400/20 text-brand-200" : "text-white/50 hover:text-white")}>{z.name}</button>
+              ))}
+            </div>
+          ) : null}
+          {!custom ? (<>
+          <div className="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
+            <button onClick={() => { setMode("live"); setT(24); }} className={cn("flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs", mode === "live" ? "bg-white/10 text-white" : "text-white/50 hover:text-white")}>
+              <Radio size={12} className={mode === "live" ? "text-rose-400" : undefined} /> {th ? "ขณะนี้" : "Live"}
+            </button>
+            <button onClick={() => setMode("replay")} className={cn("flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs", mode === "replay" ? "bg-white/10 text-white" : "text-white/50 hover:text-white")}>
+              <History size={12} /> {th ? "ย้อนดู 24 ชม." : "Replay 24 h"}
+            </button>
+          </div>
+          {mode === "replay" ? (
+            <>
+              <input type="range" min={0} max={24} step={1} value={t} onChange={(e) => setT(Number(e.target.value))} className="min-w-[160px] flex-1 accent-cyan-400" />
+              <span className="tabular w-14 text-right text-sm font-semibold text-brand-300">{t >= 24 ? (th ? "ตอนนี้" : "now") : replayClock(t)}</span>
+            </>
+          ) : (
+            <span className="text-[11px] text-white/40">{th ? "เลื่อนย้อนดูว่าเมื่อคืนเกิดอะไรขึ้น ก่อนเครื่องจะวิกฤต" : "Scrub back to see how last night unfolded before the critical alert"}</span>
+          )}
+          </>) : null}
+        </div>
+        {mode === "replay" && !custom ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {replayEvents.map((e) => (
+              <button key={e.time} onClick={() => setT(e.t)} className={cn("flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition", t >= e.t ? "border-white/20 bg-white/[0.06] text-white/80" : "border-white/10 bg-white/[0.02] text-white/40 hover:text-white/70")}>
+                <span className={cn("h-1.5 w-1.5 rounded-full", TONE_DOT[e.tone], t >= e.t && e.tone !== "ok" && "animate-pulse")} />
+                <b className="tabular font-medium">{e.time}</b> {th ? e.label.th : e.label.en}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </section>
+
+      {/* unmounted while the builder is open — the scene's floating HTML labels
+          (drei <Html>) carry a huge z-index and would bleed through the overlay */}
+      {!builderOpen ? (
+        <DigitalTwin
+          height="h-[540px] sm:h-[660px]"
+          liveStatuses={statuses}
+          floatInfo
+          assetsOverride={twinAssets}
+          buildingsOverride={twinBuildings}
+          poleOverride={custom && !viewZone ? poleOf(custom) : undefined}
+        />
+      ) : (
+        <TwinBuilder onClose={() => setBuilderOpen(false)} onSaved={() => { setLayout(loadLayout()); setViewZone(null); }} />
+      )}
+    </div>
+  );
 }
 
 /* ----------------------------------------------------------- 3 production */
@@ -127,7 +273,7 @@ export function ProductionTwinView() {
           );
         })}
       </div>
-      <Panel title={tr("Production assets")}>
+      <Panel title={tr("Production Assets")}>
         <div className="grid gap-2.5 sm:grid-cols-2">
           {prod.map((a) => (
             <div key={a.id} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.02] p-3">
@@ -156,7 +302,7 @@ export function EnergyTwinView() {
         <KpiCard label={tr("Production")} value={prodKw.toLocaleString()} unit="kW" accent="#34d399" />
         <KpiCard label={tr("Facility")} value={facKw.toLocaleString()} unit="kW" accent="#818cf8" />
       </div>
-      <Panel title={tr("Energy by asset · live kW")}>
+      <Panel title={tr("Energy by Asset")} sub={tr("Which machines pull the most power")}>
         <HBars data={machineEnergy.slice(0, 10).map((m) => ({ name: m.name, value: m.powerKw }))} color="#22d3ee" />
       </Panel>
     </div>
@@ -168,7 +314,7 @@ export function AssetTwinView() {
   const tr = useTr();
   const ranked = [...assets].sort((a, b) => a.health - b.health);
   return (
-    <Panel title={tr("Asset health register")} extra={<span className="chip">{assets.length} {tr("assets")}</span>}>
+    <Panel title={tr("Asset Health Register")} extra={<span className="chip">{assets.length} {tr("assets")}</span>}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="text-left text-[11px] uppercase tracking-wider text-white/40">
@@ -204,7 +350,7 @@ export function UtilityTwinView() {
         <KpiCard label={tr("Utility Assets")} value={`${fac.length}`} accent="#22d3ee" />
         <KpiCard label={tr("Needs Attention")} value={`${crit}`} accent="#f59e0b" />
       </div>
-      <Panel title={tr("Facility & Utility systems")}>
+      <Panel title={tr("Facility & Utility Systems")}>
         <div className="grid gap-2.5 sm:grid-cols-2">
           {fac.map((a) => (
             <div key={a.id} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.02] p-3">
@@ -234,7 +380,7 @@ export function CarbonTwinView() {
         <KpiCard label={tr("Production")} value={`${prodCo2}`} unit="kg/h" accent="#34d399" />
         <KpiCard label={tr("Facility")} value={`${facCo2}`} unit="kg/h" accent="#818cf8" />
       </div>
-      <Panel title={tr("Top carbon emitters · kg/h")}>
+      <Panel title={tr("Top Carbon Emitters")} sub={tr("Where to cut CO₂ first")}>
         <HBars data={top.map((a) => ({ name: a.name, value: a.co2KgH }))} color="#4ade80" />
       </Panel>
     </div>
@@ -254,7 +400,7 @@ export function FinancialTwinView() {
         <KpiCard label={tr("Energy Cost")} value={formatTHB(1270290)} unit="/day" accent="#818cf8" />
       </div>
       <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title={tr("Value at risk · by issue")}>
+        <Panel title={tr("Value at Risk")} sub={tr("What each open issue could cost")}>
           <ul className="space-y-2.5">
             {topRisks.map((r, i) => (
               <li key={i} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.02] p-3">
@@ -264,7 +410,7 @@ export function FinancialTwinView() {
             ))}
           </ul>
         </Panel>
-        <Panel title={tr("Daily energy cost · top assets")}>
+        <Panel title={tr("Daily Energy Cost")} sub={tr("Which assets cost the most to run")}>
           <HBars data={topCost.map((m) => ({ name: m.name, value: m.thbDay }))} color="#818cf8" />
         </Panel>
       </div>
@@ -276,7 +422,7 @@ export function FinancialTwinView() {
 export function ProcessFlowTwinView() {
   const tr = useTr();
   return (
-    <Panel title={tr("Process & energy flow · Grid → Equipment")}>
+    <Panel title={tr("Process & Energy Flow")} sub={tr("Live power flow, grid to machine")}>
       <ProcessFlow3D />
     </Panel>
   );
@@ -308,7 +454,7 @@ export function HeatmapView() {
     return { t: a.rulDays !== null ? 1 - Math.min(1, a.rulDays / 30) : 0.1, v: a.rulDays ?? 0 };
   }
   return (
-    <Panel title={tr("Factory heatmap")} extra={
+    <Panel title={tr("Factory Heatmap")} extra={
       <div className="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
         {METRICS.map((m) => (
           <button key={m.id} onClick={() => setMetric(m.id)} className={cn("rounded-md px-2.5 py-1 text-xs", metric === m.id ? "bg-white/10 text-white" : "text-white/50 hover:text-white")}>{tr(m.label)}</button>
@@ -336,12 +482,139 @@ export function HeatmapView() {
   );
 }
 
+/* ----------------------------------------------------------- 10b insight
+   The Insight step: Monitor said WHAT each asset is; these panels say SO WHAT —
+   who is degrading, which system chain is weakest, and what an at-risk machine
+   costs the business if it stops. Descriptive only — AI lives in steps 3/4. */
+
+function healthTone(h: number) {
+  return h >= 85 ? "#34d399" : h >= 70 ? "#f59e0b" : "#f43f5e";
+}
+
+export function TwinInsightView() {
+  const { locale } = useI18n();
+  const th = locale === "th";
+  const c = countByStatus();
+
+  const sys = twinSystems
+    .map((s) => {
+      const items = assets.filter((a) => s.lines.includes(a.line));
+      return {
+        label: th ? s.label.th : s.label.en,
+        health: avg(items.map((a) => a.health)),
+        warn: items.filter((a) => a.status === "warning").length,
+        crit: items.filter((a) => a.status === "critical").length,
+        n: items.length,
+      };
+    })
+    .sort((a, b) => a.health - b.health);
+  const worst = sys[0];
+
+  const fallers = assets
+    .map((a) => ({ a, d: healthDelta7d[a.id] ?? 0 }))
+    .filter((x) => x.d < 0)
+    .sort((x, y) => x.d - y.d)
+    .slice(0, 5);
+
+  const risks = riskImpact
+    .map((r) => ({ ...r, a: assets.find((a) => a.id === r.assetId) }))
+    .sort((x, y) => y.bahtPerHr - x.bahtPerHr);
+
+  return (
+    <div className="space-y-6">
+      {/* the 3-second read */}
+      <section className="panel flex flex-wrap items-center gap-3 px-5 py-4 text-sm">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-amber-400/30 bg-amber-400/10 text-amber-300"><AlertTriangle size={15} /></span>
+        <p className="min-w-0 flex-1 leading-relaxed text-white/75">
+          {th ? (
+            <>{assets.length} เครื่อง: ดี {c.healthy} · เฝ้าระวัง {c.warning} · วิกฤต {c.critical} — จุดอ่อนรวมอยู่ที่ <b className="text-amber-300">{worst.label}</b> (สุขภาพเฉลี่ย {worst.health}/100)</>
+          ) : (
+            <>{assets.length} assets: {c.healthy} good · {c.warning} watch · {c.critical} critical — weakness concentrates in <b className="text-amber-300">{worst.label}</b> (avg health {worst.health}/100)</>
+          )}
+        </p>
+      </section>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Panel title={th ? "ร่วงเร็วสุด · 7 วัน" : "Fastest fallers · 7 days"} sub={th ? "เครื่องที่กำลังแย่ลง — ต้องดูก่อน" : "Degrading now — look here first"}>
+          <ul className="space-y-2">
+            {fallers.map(({ a, d }) => (
+              <li key={a.id} className="flex items-center gap-3 rounded-xl border border-white/8 bg-white/[0.02] px-3.5 py-2.5">
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: STATUS_COLOR[a.status] }} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-medium">{a.name}</p>
+                  <p className="text-[11px] text-white/40">{a.line}</p>
+                </div>
+                <span className="tabular text-sm font-semibold" style={{ color: healthTone(a.health) }}>{a.health}</span>
+                <span className="flex w-14 shrink-0 items-center justify-end gap-0.5 tabular text-[12px] font-semibold text-rose-300">
+                  <ArrowDown size={12} />{Math.abs(d)} {th ? "จุด" : "pts"}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-[11px] leading-relaxed text-white/40">
+            {th ? "คะแนน = สุขภาพตอนนี้ · ลูกศร = เปลี่ยนใน 7 วัน — เครื่องที่ร่วงเร็วอันตรายกว่าเครื่องที่ต่ำแต่นิ่ง" : "Score = health now · arrow = 7-day change — a fast faller is riskier than a low-but-stable machine"}
+          </p>
+        </Panel>
+
+        <Panel title={th ? "สุขภาพรายระบบ" : "Health by system"} sub={th ? "โซ่ไหนอ่อนแอสุดในโรงงาน" : "Which chain is weakest"}>
+          <div className="space-y-2.5">
+            {sys.map((s) => (
+              <div key={s.label} className="flex items-center gap-3">
+                <span className="w-36 shrink-0 break-words text-[12px] leading-tight text-white/70">{s.label}</span>
+                <div className="h-3 flex-1 overflow-hidden rounded-full bg-white/8">
+                  <div className="h-full rounded-full" style={{ width: `${s.health}%`, backgroundColor: healthTone(s.health) }} />
+                </div>
+                <span className="w-8 shrink-0 text-right tabular text-[12px] font-semibold" style={{ color: healthTone(s.health) }}>{s.health}</span>
+                <span className="flex w-12 shrink-0 items-center justify-end gap-1">
+                  {s.crit > 0 ? <span className="h-2 w-2 rounded-full bg-status-crit" title={`${s.crit} critical`} /> : null}
+                  {s.warn > 0 ? <span className="h-2 w-2 rounded-full bg-status-warn" title={`${s.warn} warning`} /> : null}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-[11px] leading-relaxed text-white/40">
+            {th ? "เฉลี่ยจากทุกเครื่องในระบบ · จุดสี = มีเครื่องเฝ้าระวัง/วิกฤตอยู่ข้างใน" : "Averaged across the chain · dots = warning/critical machines inside"}
+          </p>
+        </Panel>
+      </div>
+
+      <HeatmapView />
+
+      <Panel title={th ? "ความเสี่ยงคิดเป็นเงิน" : "Risk in ฿"} sub={th ? "ถ้าเครื่องเสี่ยงตัวนี้หยุด ธุรกิจเสียเท่าไหร่" : "What each at-risk machine costs if it stops"}>
+        <ul className="space-y-2">
+          {risks.map((r) => (
+            <li key={r.assetId} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-white/8 bg-white/[0.02] px-3.5 py-2.5">
+              <div className="flex w-44 shrink-0 items-center gap-2.5">
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: r.a ? STATUS_COLOR[r.a.status] : undefined }} />
+                <div>
+                  <p className="text-[13px] font-medium">{r.asset}</p>
+                  {r.a?.rulDays != null ? <p className="text-[11px] text-rose-300/80">{th ? `คาดว่าจะเสียใน ~${r.a.rulDays} วัน` : `predicted failure ~${r.a.rulDays}d`}</p> : null}
+                </div>
+              </div>
+              <p className="min-w-[220px] flex-1 text-[12px] leading-relaxed text-white/55">{th ? r.downstream.th : r.downstream.en}</p>
+              <div className="shrink-0 text-right">
+                <p className="tabular text-[13px] font-semibold text-rose-300">฿{r.bahtPerHr.toLocaleString()}/{th ? "ชม." : "hr"}</p>
+                <p className="text-[11px] text-white/40">{th ? "1 กะ (8 ชม.)" : "1 shift (8 h)"} ≈ ฿{formatCompact(r.bahtPerHr * 8)}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 text-[11px] leading-relaxed text-white/40">
+          {th ? "คิดจากมูลค่างานของไลน์ที่พึ่งเครื่องตัวนั้น — ตัวเลขเดียวกับที่ใช้จัดลำดับงานซ่อม" : "Priced from the output value of the lines that depend on each machine — the same number used to rank maintenance"}
+        </p>
+      </Panel>
+    </div>
+  );
+}
+
 /* ----------------------------------------------------------- 11 simulation */
 function SimSlider({ label, value, onChange }: { label: string; value: number; onChange: (n: number) => void }) {
   return (<div><label className="mb-1.5 flex items-center justify-between text-xs text-white/55">{label}<span className="tabular text-brand-300">{value}%</span></label><input type="range" min={0} max={100} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full accent-cyan-400" /></div>);
 }
-export function SimulationView() {
+export function SimulationView({ onPlan }: { onPlan?: () => void } = {}) {
   const tr = useTr();
+  const { locale } = useI18n();
+  const th = locale === "th";
   const [shift, setShift] = useState(simDefaults.offPeakShift);
   const [downtime, setDowntime] = useState(simDefaults.downtimeReduction);
   const [idle, setIdle] = useState(simDefaults.idleCut);
@@ -351,7 +624,7 @@ export function SimulationView() {
   const oee = ((downtime / 100) * 5).toFixed(1);
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      <Panel title={tr("What-if scenario")}>
+      <Panel title={tr("What-If Scenario")}>
         <div className="space-y-5">
           <SimSlider label={tr("Shift load to off-peak")} value={shift} onChange={setShift} />
           <SimSlider label={tr("Reduce unplanned downtime")} value={downtime} onChange={setDowntime} />
@@ -359,7 +632,7 @@ export function SimulationView() {
         </div>
         <p className="mt-5 text-xs leading-relaxed text-white/45">{tr("The twin replays current telemetry through your scenario to project monthly impact.")}</p>
       </Panel>
-      <Panel title={tr("Projected monthly impact")}>
+      <Panel title={tr("Projected Monthly Impact")}>
         <div className="grid grid-cols-1 gap-4">
           <div className="rounded-2xl border border-status-ok/25 bg-status-ok/[0.07] p-4"><p className="text-[11px] uppercase tracking-wider text-white/45">{tr("Cost saving")}</p><p className="mt-1 text-3xl font-semibold tabular text-emerald-300">{formatTHB(save)}<span className="text-sm text-white/40">/mo</span></p></div>
           <div className="grid grid-cols-2 gap-4">
@@ -367,27 +640,119 @@ export function SimulationView() {
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"><p className="text-[11px] uppercase tracking-wider text-white/45">{tr("OEE gain")}</p><p className="mt-1 text-xl font-semibold tabular text-emerald-300">+{oee} pts</p></div>
           </div>
         </div>
-        <AskCopilot prompt="Build a rollout plan for the simulated scenario" className="btn-ghost mt-4 w-full justify-center py-2 text-sm">{tr("Ask AI to plan the rollout")}</AskCopilot>
+        {onPlan ? (
+          <button onClick={onPlan} className="btn-glow mt-4 w-full justify-center py-2.5 text-sm">
+            {th ? "แปลงสถานการณ์นี้เป็นแผน — ไปขั้นลงมือ" : "Turn this scenario into a plan — go to Act"} <ArrowRight size={14} />
+          </button>
+        ) : null}
+        <AskCopilot prompt="Build a rollout plan for the simulated scenario" className="btn-ghost mt-2 w-full justify-center py-2 text-sm">{tr("Ask AI to plan the rollout")}</AskCopilot>
       </Panel>
     </div>
   );
 }
 
 /* ----------------------------------------------------------- 12 AI insights */
-export function AIInsightsView() {
+
+const SEV_STYLE: Record<TwinSeverity, { cls: string; th: string; en: string }> = {
+  "act-now": { cls: "border-status-crit/30 bg-status-crit/10 text-rose-300", th: "ด่วน — ทำเลย", en: "Act now" },
+  "this-week": { cls: "border-status-warn/30 bg-status-warn/10 text-amber-300", th: "สัปดาห์นี้", en: "This week" },
+  opportunity: { cls: "border-brand-400/30 bg-brand-400/10 text-brand-300", th: "โอกาส", en: "Opportunity" },
+  good: { cls: "border-status-ok/30 bg-status-ok/10 text-emerald-300", th: "ข่าวดี", en: "On track" },
+};
+
+/** ranked AI findings — biggest money first, each actionable one links to Act */
+export function AIInsightsView({ onAct }: { onAct?: () => void } = {}) {
   const tr = useTr();
+  const { locale } = useI18n();
+  const th = locale === "th";
+  const ranked = [...twinAiInsights].sort((a, b) => b.bahtOrder - a.bahtOrder);
   return (
-    <Panel title={tr("AI insights · across the twin")}>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {twinInsights.map((it) => (
-          <div key={it.title} className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-            <div className="flex items-center gap-2"><span className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-brand-400 to-accent-500 text-ink-950"><Sparkles size={13} /></span><span className="chip">{tr(it.tag)}</span></div>
-            <p className="mt-2.5 text-sm font-medium">{tr(it.title)}</p>
-            <p className="mt-1 text-xs leading-relaxed text-white/55">{tr(it.detail)}</p>
+    <Panel
+      title={th ? "เรื่องที่ AI พบ · เรียงตามเงิน" : "AI Findings · ranked by money"}
+      sub={th ? "อ่านบนลงล่าง = ลำดับที่ควรลงมือ" : "Top to bottom = the order to act in"}
+      extra={<span className="chip border-status-crit/30 bg-status-crit/10 text-rose-300">{th ? "ความเสี่ยงรวม ฿6.2M" : "฿6.2M total exposure"}</span>}
+    >
+      <ul className="space-y-2.5">
+        {ranked.map((it, i) => {
+          const sev = SEV_STYLE[it.severity];
+          return (
+            <li key={it.title.en} className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white/[0.06] text-[12px] font-semibold text-white/70">{i + 1}</span>
+              <div className="min-w-[220px] flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-medium">{th ? it.title.th : it.title.en}</p>
+                  <span className={cn("inline-flex items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-medium", sev.cls)}>{th ? sev.th : sev.en}</span>
+                  <span className="chip text-[10px]">{tr(it.tag)}</span>
+                </div>
+                <p className="mt-1 text-xs leading-relaxed text-white/55">{th ? it.detail.th : it.detail.en}</p>
+                <p className="mt-1 text-[10.5px] text-white/35">{th ? `AI มั่นใจ ${it.confidence}%` : `AI confidence ${it.confidence}%`}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-3">
+                <span className={cn("tabular text-sm font-semibold", it.severity === "good" ? "text-emerald-300" : it.severity === "opportunity" ? "text-brand-300" : "text-rose-300")}>{th ? it.impact.th : it.impact.en}</span>
+                {it.actionable && onAct ? (
+                  <button onClick={onAct} className="btn border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10">
+                    {th ? "ลงมือ" : "Act"} <ArrowRight size={12} />
+                  </button>
+                ) : null}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <AskCopilot prompt="Summarize the most important things happening in the factory right now" className="btn-ghost mt-4 w-full justify-center py-2 text-sm">{tr("Ask the Copilot for the full picture")}</AskCopilot>
+    </Panel>
+  );
+}
+
+/** the proof behind finding #1 — signals, confidence and the ฿ maths that
+ *  make the prediction believable to a plant engineer */
+export function TwinRootCauseCard({ onAct, onSee3d }: { onAct?: () => void; onSee3d?: () => void } = {}) {
+  const { locale } = useI18n();
+  const th = locale === "th";
+  const c = chillerAnalysis;
+  const ratio = Math.round(c.riskBaht / c.fixBaht);
+  // stash the asset for the twin to pick up on mount, then jump to Monitor
+  const focus3d = () => { uibus.pendingAsset = c.assetId; onSee3d?.(); };
+  return (
+    <Panel
+      title={th ? `AI เจาะลึกเรื่องด่วนอันดับ 1 · ${c.asset}` : `Deep dive on finding #1 · ${c.asset}`}
+      sub={th ? "รู้ได้ยังไงว่าจะพัง — หลักฐานที่โมเดลใช้" : "How the model knows — the evidence behind the call"}
+      extra={
+        <span className="chip border-brand-400/30 bg-brand-400/10 text-brand-300">
+          <Sparkles size={12} /> {th ? `มั่นใจ ${c.confidence}% · ข้อมูล ${c.daysOfData} วัน · เคสคล้าย ${c.similarCases}` : `${c.confidence}% confident · ${c.daysOfData}d of data · ${c.similarCases} similar cases`}
+        </span>
+      }
+    >
+      <div className="grid gap-3 md:grid-cols-3">
+        {c.signals.map((s) => (
+          <div key={s.label.en} className="rounded-xl border border-white/8 bg-white/[0.02] p-3.5">
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="text-[12px] font-medium text-white/70">{th ? s.label.th : s.label.en}</p>
+              <p className="tabular text-lg font-semibold" style={{ color: s.color }}>{s.now}</p>
+            </div>
+            <div className="mt-1.5"><Sparkline data={s.series} color={s.color} width={200} height={34} /></div>
+            <p className="mt-1.5 text-[10.5px] leading-snug text-white/45">{th ? s.note.th : s.note.en}</p>
           </div>
         ))}
       </div>
-      <AskCopilot prompt="Summarize the most important things happening in the factory right now" className="btn-ghost mt-4 w-full justify-center py-2 text-sm">{tr("Ask the Copilot for the full picture")}</AskCopilot>
+      <p className="mt-4 rounded-xl border border-status-crit/25 bg-status-crit/[0.06] p-3.5 text-[12.5px] leading-relaxed text-white/70">
+        {th ? c.verdict.th : c.verdict.en}
+      </p>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <p className="min-w-0 flex-1 text-[12.5px] text-white/60">
+          {th
+            ? <>ปล่อยไว้ = เสี่ยง <b className="text-rose-300">฿{formatCompact(c.riskBaht)}</b> · ซ่อมตอนนี้ ≈ <b className="text-emerald-300">฿{formatCompact(c.fixBaht)}</b> — คุ้มกว่า {ratio} เท่า</>
+            : <>Do nothing = <b className="text-rose-300">฿{formatCompact(c.riskBaht)}</b> at risk · fix now ≈ <b className="text-emerald-300">฿{formatCompact(c.fixBaht)}</b> — a {ratio}× trade</>}
+        </p>
+        <button onClick={focus3d} className="btn border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10">
+          {th ? "ดูใน 3D" : "See in 3D"}
+        </button>
+        {onAct ? (
+          <button onClick={onAct} className="btn-glow px-3.5 py-2 text-xs">
+            {th ? "สร้างแผนซ่อม — ไปขั้นลงมือ" : "Raise the fix — go to Act"} <ArrowRight size={13} />
+          </button>
+        ) : null}
+      </div>
     </Panel>
   );
 }
