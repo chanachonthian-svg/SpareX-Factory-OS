@@ -19,6 +19,7 @@ import { Icon3D } from "@/components/os/Icon3D";
 import { AskCopilot } from "@/components/os/AskCopilot";
 import { createWorkOrder, useWorkOrders } from "@/lib/workorders";
 import { cn, formatTHB } from "@/lib/utils";
+import { useAiAutoQw } from "@/lib/autonomy";
 import {
   powerQuality, harmonics, pqStandards, voltageEvents, transientSummary,
   PQ_EVENT_META, pqTally, pqSources, pqEventProfile, pqNotableEvents,
@@ -671,7 +672,7 @@ function ActionStep({ L }: { L: Lf }) {
   const [capSev, setCapSev] = useState<"all" | "critical" | "warning" | "recommend">("all");
   const [qwFilter, setQwFilter] = useState<"all" | "pending" | "done">("all");
   const [qwSel, setQwSel] = useState<string | null>(pqQuickWins[0]?.id ?? null);
-  const [qwAuto, setQwAuto] = useState<Record<string, boolean>>(() => Object.fromEntries(pqQuickWins.map((q) => [q.id, true])));
+  const [qwAuto, setQwAuto] = useAiAutoQw("power-quality", Object.fromEntries(pqQuickWins.map((q) => [q.id, true])));
   const [quoteSent, setQuoteSent] = useState<Set<string>>(new Set());
   const orders = useWorkOrders();
 

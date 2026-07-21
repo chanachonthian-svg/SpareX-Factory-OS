@@ -17,6 +17,7 @@ import { Icon3D } from "@/components/os/Icon3D";
 import { AreaTrend, HBars, MultiLine } from "@/components/os/charts";
 import { createWorkOrder, useWorkOrders } from "@/lib/workorders";
 import { cn, formatTHB } from "@/lib/utils";
+import { useAiAutoQw } from "@/lib/autonomy";
 import { AirSystem3D } from "@/components/vortiq/AirSystem3D";
 
 type LZ = { en: string; th: string };
@@ -513,7 +514,7 @@ function ActionStep({ L }: { L: (o: LZ) => string }) {
   const [capSev, setCapSev] = useState<"all" | "critical" | "warning" | "recommend">("all");
   const [qwFilter, setQwFilter] = useState<"all" | "pending" | "done">("all");
   const [qwSel, setQwSel] = useState<string | null>(vortiqQuickWins[0]?.id ?? null);
-  const [qwAuto, setQwAuto] = useState<Record<string, boolean>>(() => Object.fromEntries(vortiqQuickWins.map((q) => [q.id, true])));
+  const [qwAuto, setQwAuto] = useAiAutoQw("vortiq", Object.fromEntries(vortiqQuickWins.map((q) => [q.id, true])));
   const [quoteSent, setQuoteSent] = useState<Set<string>>(new Set());
   const [acts, setActs] = useState(autos);
   const orders = useWorkOrders();

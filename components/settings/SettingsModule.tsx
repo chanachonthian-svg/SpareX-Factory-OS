@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { assets, STATUS_COLOR, STATUS_LABEL, type Asset } from "@/lib/factory";
 import { loadLayout, toAssets } from "@/lib/twin-builder";
+import { notifyAutonomyChanged, useAiAutoSummary } from "@/lib/autonomy";
 import { tariff } from "@/lib/energy";
 import { useBrand, setBrand } from "@/lib/brand";
 import { useI18n } from "@/lib/i18n";
@@ -372,21 +373,54 @@ const AUTONOMY = [
 
 function AutomationSection() {
   const tr = useTr();
+  const { locale } = useI18n();
+  const L = (o: { en: string; th: string }) => (locale === "th" ? o.th : o.en);
   const [s, setS] = usePersist("factoryos:automation", {
     autonomy: 1, protectCritical: true, logReversible: true,
     tempBand: 1, pfMin: 0.95, pfMax: 0.99, idleMin: 15, peakTarget: 2900, offPeak: "22:00–09:00",
   });
   const upd = (patch: Partial<typeof s>) => setS((p) => ({ ...p, ...patch }));
+  const aiAuto = useAiAutoSummary();
+
+  const setLevel = (i: number) => {
+    if (i === s.autonomy) return;
+    if (i === 2 && !window.confirm(L({
+      en: "Full-auto lets the AI act on its own within the guardrails. Continue?",
+      th: "Full-auto = AI ลงมือเองได้ภายใต้ Guardrails ทั้งหมด — ยืนยันเปิดใช้?",
+    }))) return;
+    if (i === 0 && aiAuto.count > 0 && !window.confirm(L({
+      en: `${aiAuto.count} AI Auto assignments will be paused while in Advisory. Continue?`,
+      th: `AI Auto ที่เปิดอยู่ ${aiAuto.count} เรื่องจะถูกพักไว้ระหว่างโหมด Advisory — ยืนยัน?`,
+    }))) return;
+    upd({ autonomy: i });
+    // the usePersist effect writes after render — write the level now so every
+    // AI Auto toggle across the app reacts in this same tick
+    try {
+      const cur = JSON.parse(localStorage.getItem("factoryos:automation") || "{}");
+      localStorage.setItem("factoryos:automation", JSON.stringify({ ...cur, autonomy: i }));
+    } catch { /* ignore */ }
+    notifyAutonomyChanged();
+  };
 
   return (
     <div className="space-y-6">
       <Card icon={Sparkles} title={tr("Autonomy Level")} subtitle={tr("How much the AI is allowed to do on its own — applies to all managers.")}>
         <div className="flex gap-1 rounded-lg border border-white/10 bg-white/[0.02] p-1">
           {AUTONOMY.map((lv, i) => (
-            <button key={lv.l} onClick={() => upd({ autonomy: i })} className={cn("flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition", s.autonomy === i ? "bg-brand-400/15 text-brand-200" : "text-white/50 hover:text-white/80")}>{tr(lv.l)}</button>
+            <button key={lv.l} onClick={() => setLevel(i)} className={cn("flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition", s.autonomy === i ? "bg-brand-400/15 text-brand-200" : "text-white/50 hover:text-white/80")}>{tr(lv.l)}</button>
           ))}
         </div>
         <p className="mt-3 text-sm text-white/60">{tr(AUTONOMY[s.autonomy].d)}</p>
+        {/* what the AI is actually assigned right now — the toggles across modules */}
+        {s.autonomy === 0 && aiAuto.count > 0 ? (
+          <p className="mt-2 rounded-lg border border-amber-400/25 bg-amber-400/[0.06] px-3 py-2 text-[12px] text-amber-200">
+            {L({ en: `${aiAuto.count} AI Auto assignments are paused (Advisory mode) — they resume when you raise the level.`, th: `AI Auto ${aiAuto.count} เรื่องถูกพักไว้ (โหมด Advisory) — จะกลับมาทำงานเมื่อปรับระดับขึ้น` })}
+          </p>
+        ) : aiAuto.count > 0 ? (
+          <p className="mt-2 text-[12px] text-white/50">
+            🤖 {L({ en: `AI is currently assigned ${aiAuto.count} measures across ${aiAuto.modules.length} modules`, th: `ตอนนี้ AI ดูแลอยู่ ${aiAuto.count} เรื่องใน ${aiAuto.modules.length} โมดูล` })} <span className="text-white/35">({aiAuto.modules.join(" · ")})</span>
+          </p>
+        ) : null}
       </Card>
 
       <Card icon={ShieldCheck} title={tr("Guardrails")} subtitle={tr("Always on · hard limits the AI can never cross")}>

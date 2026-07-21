@@ -16,6 +16,7 @@ import {
 import { currentUser, SPAREX_SALES_EMAIL } from "@/lib/user";
 import { Icon3D } from "@/components/os/Icon3D";
 import { openCopilot, cn } from "@/lib/utils";
+import { useAiAutoQw } from "@/lib/autonomy";
 import { useI18n } from "@/lib/i18n";
 import { WorkflowBar } from "@/components/os/WorkflowNav";
 import { KpiCard } from "@/components/os/KpiCard";
@@ -1278,7 +1279,7 @@ function ActView({ L }: { L: Tr }) {
   const [capSev, setCapSev] = useState<"all" | "critical" | "warning" | "recommend">("all");
   const [qwFilter, setQwFilter] = useState<"all" | "pending" | "done">("all");
   const [qwSel, setQwSel] = useState<string | null>(visionQuickWins[0]?.id ?? null);
-  const [qwAuto, setQwAuto] = useState<Record<string, boolean>>(() => Object.fromEntries(visionQuickWins.map((q) => [q.id, true])));
+  const [qwAuto, setQwAuto] = useAiAutoQw("vision", Object.fromEntries(visionQuickWins.map((q) => [q.id, true])));
   const [quoteSent, setQuoteSent] = useState<Set<string>>(new Set());
   const orders = useWorkOrders();
 

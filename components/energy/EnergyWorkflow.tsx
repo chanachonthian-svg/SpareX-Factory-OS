@@ -26,6 +26,7 @@ import {
 import { AskCopilot } from "@/components/os/AskCopilot";
 import { createWorkOrder, useWorkOrders } from "@/lib/workorders";
 import { cn, formatTHB } from "@/lib/utils";
+import { useAiAutoQw } from "@/lib/autonomy";
 
 type LZ = { en: string; th: string };
 
@@ -1601,7 +1602,7 @@ function ActionStep({ L }: { L: (o: LZ) => string }) {
   const [capSev, setCapSev] = useState<"all" | "critical" | "warning" | "recommend">("all");
   const [qwFilter, setQwFilter] = useState<"all" | "pending" | "done">("all");
   const [qwSel, setQwSel] = useState<string | null>("qw-peak");
-  const [qwAuto, setQwAuto] = useState<Record<string, boolean>>({ "qw-peak": true, "qw-idle": true, "qw-stagger": true, "qw-shift": true });
+  const [qwAuto, setQwAuto] = useAiAutoQw("energy", { "qw-peak": true, "qw-idle": true, "qw-stagger": true, "qw-shift": true });
   const [stagInterval, setStagInterval] = useState(3);
   const [stagOrder, setStagOrder] = useState<string[]>(startupLoads.map((m) => m.id));
   const moveStag = (idx: number, dir: -1 | 1) => setStagOrder((o) => { const n = [...o]; const j = idx + dir; if (j < 0 || j >= n.length) return o; [n[idx], n[j]] = [n[j], n[idx]]; return n; });

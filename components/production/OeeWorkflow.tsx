@@ -18,6 +18,7 @@ import { AreaTrend, HBars, MultiLine } from "@/components/os/charts";
 import { createWorkOrder, useWorkOrders } from "@/lib/workorders";
 import { Sparkline } from "@/components/ui/Sparkline";
 import { cn, formatTHB } from "@/lib/utils";
+import { useAiAutoQw } from "@/lib/autonomy";
 
 type LZ = { en: string; th: string };
 
@@ -902,7 +903,7 @@ function ActionStep({ L }: { L: (o: LZ) => string }) {
   const [capSev, setCapSev] = useState<"all" | "critical" | "warning" | "recommend">("all");
   const [qwFilter, setQwFilter] = useState<"all" | "pending" | "done">("all");
   const [qwSel, setQwSel] = useState<string | null>(productionQuickWins[0]?.id ?? null);
-  const [qwAuto, setQwAuto] = useState<Record<string, boolean>>(() => Object.fromEntries(productionQuickWins.map((q) => [q.id, true])));
+  const [qwAuto, setQwAuto] = useAiAutoQw("production", Object.fromEntries(productionQuickWins.map((q) => [q.id, true])));
   const [quoteSent, setQuoteSent] = useState<Set<string>>(new Set());
   const [acts, setActs] = useState(autos);
   const orders = useWorkOrders();

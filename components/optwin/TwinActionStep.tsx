@@ -17,6 +17,7 @@ import { useI18n } from "@/lib/i18n";
 import { Icon3D } from "@/components/os/Icon3D";
 import { createWorkOrder, useWorkOrders } from "@/lib/workorders";
 import { cn, formatTHB } from "@/lib/utils";
+import { useAiAutoQw } from "@/lib/autonomy";
 import { twinQuickWins, twinCapitalProjects, type TwinLZ, type TwinQuickWinStatus } from "@/lib/optwin";
 
 type LZ = TwinLZ;
@@ -123,7 +124,7 @@ export function TwinActionStep() {
   const [lit, setLit] = useState(false);
   useEffect(() => { const t = setTimeout(() => setLit(true), 90); return () => clearTimeout(t); }, []);
   const [qwStatus, setQwStatus] = useState<Record<string, TwinQuickWinStatus>>(() => Object.fromEntries(twinQuickWins.map((q) => [q.id, q.status])));
-  const [qwAuto, setQwAuto] = useState<Record<string, boolean>>(() => Object.fromEntries(twinQuickWins.map((q) => [q.id, q.autoDefault])));
+  const [qwAuto, setQwAuto] = useAiAutoQw("twin", Object.fromEntries(twinQuickWins.map((q) => [q.id, q.autoDefault])));
   const [openId, setOpenId] = useState<string | null>(twinCapitalProjects[0]?.id ?? null);
   // exec-card filter — click a side to see only that part; click again for both
   const [view, setView] = useState<"all" | "zero" | "invest">("all");
