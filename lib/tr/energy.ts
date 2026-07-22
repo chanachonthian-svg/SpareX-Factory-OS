@@ -598,6 +598,7 @@ export const energyDict: TrDict = {
   "Tariff & billing": { th: "ค่าไฟ & การเรียกเก็บ", ja: "料金・請求", zh: "电价与账单" },
   "AI & automation": { th: "AI & ระบบอัตโนมัติ", ja: "AI・自動化", zh: "AI 与自动化" },
   "Notifications": { th: "การแจ้งเตือน", ja: "通知", zh: "通知" },
+  "Notification setup": { th: "ตั้งค่าการแจ้งเตือน", ja: "通知設定", zh: "通知设置" },
   "Users & roles": { th: "ผู้ใช้ & สิทธิ์", ja: "ユーザー・権限", zh: "用户与权限" },
   /* settings — tariff */
   "Electricity Tariff": { th: "อัตราค่าไฟฟ้า", ja: "電気料金", zh: "电价" },

@@ -583,9 +583,14 @@ function NotificationsSection() {
         title={tr("Notification Channels")}
         subtitle={tr("Where alerts are delivered.")}
         extra={
-          <button onClick={sendTest} disabled={testing || (!s.email && !s.line)} className="flex items-center gap-1.5 rounded-lg border border-brand-400/30 bg-brand-400/[0.08] px-3 py-1.5 text-xs font-medium text-brand-200 transition hover:bg-brand-400/[0.15] disabled:opacity-50">
-            {testing ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />} {L({ en: "Send a test", th: "ส่งข้อความทดสอบ" })}
-          </button>
+          <div className="flex items-center gap-2">
+            <a href={publicAsset("/os/notifications")} className="hidden items-center gap-1.5 rounded-lg border border-white/12 bg-white/[0.02] px-3 py-1.5 text-xs text-white/60 transition hover:border-brand-400/40 hover:text-white sm:flex">
+              <Bell size={12} /> {L({ en: "See delivered alerts", th: "ดูที่ส่งไปแล้ว" })}
+            </a>
+            <button onClick={sendTest} disabled={testing || (!s.email && !s.line)} className="flex items-center gap-1.5 rounded-lg border border-brand-400/30 bg-brand-400/[0.08] px-3 py-1.5 text-xs font-medium text-brand-200 transition hover:bg-brand-400/[0.15] disabled:opacity-50">
+              {testing ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />} {L({ en: "Send a test", th: "ส่งข้อความทดสอบ" })}
+            </button>
+          </div>
         }
       >
         <div className="grid gap-4 md:grid-cols-2">
@@ -867,13 +872,20 @@ const SECTIONS = [
   { k: "tariff", icon: Coins, label: "Tariff & billing" },
   { k: "brand", icon: Building2, label: "Company & branding" },
   { k: "ai", icon: Sparkles, label: "AI & automation" },
-  { k: "notify", icon: Bell, label: "Notifications" },
+  { k: "notify", icon: Bell, label: "Notification setup" },
   { k: "users", icon: Users, label: "Users & roles" },
 ] as const;
 
 export function SettingsModule() {
   const tr = useTr();
   const [section, setSection] = useState<(typeof SECTIONS)[number]["k"]>("connect");
+  // deep-link: /os/settings?tab=notify opens straight to that tab
+  useEffect(() => {
+    try {
+      const t = new URLSearchParams(window.location.search).get("tab");
+      if (t && SECTIONS.some((s) => s.k === t)) setSection(t as (typeof SECTIONS)[number]["k"]);
+    } catch { /* ignore */ }
+  }, []);
 
   return (
     <div className="space-y-6">
