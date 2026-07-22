@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
   Shield, ShieldOff, Search, Factory, Zap, RotateCcw, Coins, Sparkles, Bell,
   Users, ShieldCheck, Mail, MessageSquare, Smartphone, MonitorSmartphone, Check, Clock,
@@ -381,17 +382,10 @@ function AutomationSection() {
   });
   const upd = (patch: Partial<typeof s>) => setS((p) => ({ ...p, ...patch }));
   const aiAuto = useAiAutoSummary();
+  // themed confirm modal — the native window.confirm breaks the dark theme
+  const [confirmReq, setConfirmReq] = useState<{ title: string; msg: string; yes: string; apply: () => void } | null>(null);
 
-  const setLevel = (i: number) => {
-    if (i === s.autonomy) return;
-    if (i === 2 && !window.confirm(L({
-      en: "Full-auto lets the AI act on its own within the guardrails. Continue?",
-      th: "Full-auto = AI ลงมือเองได้ภายใต้ Guardrails ทั้งหมด — ยืนยันเปิดใช้?",
-    }))) return;
-    if (i === 0 && aiAuto.count > 0 && !window.confirm(L({
-      en: `${aiAuto.count} AI Auto assignments will be paused while in Advisory. Continue?`,
-      th: `AI Auto ที่เปิดอยู่ ${aiAuto.count} เรื่องจะถูกพักไว้ระหว่างโหมด Advisory — ยืนยัน?`,
-    }))) return;
+  const applyLevel = (i: number) => {
     upd({ autonomy: i });
     // the usePersist effect writes after render — write the level now so every
     // AI Auto toggle across the app reacts in this same tick
@@ -400,6 +394,35 @@ function AutomationSection() {
       localStorage.setItem("factoryos:automation", JSON.stringify({ ...cur, autonomy: i }));
     } catch { /* ignore */ }
     notifyAutonomyChanged();
+  };
+
+  const setLevel = (i: number) => {
+    if (i === s.autonomy) return;
+    if (i === 2) {
+      setConfirmReq({
+        title: L({ en: "Enable Full-auto?", th: "เปิดโหมด Full-auto?" }),
+        msg: L({
+          en: "The AI will run guardrailed actions on its own and notify you afterwards. Every action is logged and reversible.",
+          th: "AI จะลงมือเองภายใต้ Guardrails ทั้งหมด แล้วแจ้งให้ทราบ — ทุกการกระทำถูกบันทึกและย้อนกลับได้",
+        }),
+        yes: L({ en: "Enable Full-auto", th: "เปิดใช้ Full-auto" }),
+        apply: () => applyLevel(2),
+      });
+      return;
+    }
+    if (i === 0 && aiAuto.count > 0) {
+      setConfirmReq({
+        title: L({ en: "Switch to Advisory?", th: "ลดเป็นโหมด Advisory?" }),
+        msg: L({
+          en: `${aiAuto.count} AI Auto assignments will be paused — they resume automatically when you raise the level again.`,
+          th: `AI Auto ที่เปิดอยู่ ${aiAuto.count} เรื่องจะถูกพักไว้ — และกลับมาทำงานเองเมื่อปรับระดับขึ้นอีกครั้ง`,
+        }),
+        yes: L({ en: "Switch to Advisory", th: "ลดเป็น Advisory" }),
+        apply: () => applyLevel(0),
+      });
+      return;
+    }
+    applyLevel(i);
   };
 
   return (
@@ -422,6 +445,27 @@ function AutomationSection() {
           </p>
         ) : null}
       </Card>
+
+      {confirmReq ? createPortal(
+        <div className="fixed inset-0 z-[95] grid place-items-center bg-black/60 p-5 backdrop-blur-sm" onClick={() => setConfirmReq(null)}>
+          <div className="w-full max-w-[400px] rounded-2xl border border-white/12 bg-ink-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <span className="grid h-10 w-10 place-items-center rounded-xl border border-brand-400/30 bg-brand-400/10 text-brand-300"><Sparkles size={18} /></span>
+            <h3 className="mt-3.5 text-[16px] font-bold text-white">{confirmReq.title}</h3>
+            <p className="mt-1.5 text-[13px] leading-relaxed text-white/60">{confirmReq.msg}</p>
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => { confirmReq.apply(); setConfirmReq(null); }}
+                className="btn-glow flex-1 justify-center py-2.5 text-[13.5px]"
+              >{confirmReq.yes}</button>
+              <button
+                onClick={() => setConfirmReq(null)}
+                className="rounded-xl border border-white/15 px-5 py-2.5 text-[13.5px] text-white/65 transition hover:bg-white/5 hover:text-white"
+              >{L({ en: "Cancel", th: "ยกเลิก" })}</button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      ) : null}
 
       <Card icon={ShieldCheck} title={tr("Guardrails")} subtitle={tr("Always on · hard limits the AI can never cross")}>
         <div className="space-y-3">
