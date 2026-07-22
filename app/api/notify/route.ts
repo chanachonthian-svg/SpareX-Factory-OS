@@ -59,18 +59,25 @@ export async function POST(req: Request) {
     }
   }
 
-  // ── LINE (Messaging API push) ──
+  // ── LINE (Messaging API) ──
+  // Only a channel token is required. With LINE_TARGET_ID set we push to that
+  // group/user; without it we broadcast to everyone who added the OA as a friend
+  // — so the plant ops team just adds the OA and gets alerts, no group ID needed.
   let lineResult: "sent" | "skipped" | "failed" | "not_configured" = "skipped";
   if (lineOn) {
     const token = process.env.LINE_CHANNEL_TOKEN;
     const target = process.env.LINE_TARGET_ID;
-    if (!token || !target) lineResult = "not_configured";
+    if (!token) lineResult = "not_configured";
     else {
+      const messages = [{ type: "text", text: `${subject}\n\n${body}`.slice(0, 4900) }];
+      const [url, payload] = target
+        ? ["https://api.line.me/v2/bot/message/push", { to: target, messages }]
+        : ["https://api.line.me/v2/bot/message/broadcast", { messages }];
       try {
-        const res = await fetch("https://api.line.me/v2/bot/message/push", {
+        const res = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ to: target, messages: [{ type: "text", text: `${subject}\n\n${body}`.slice(0, 4900) }] }),
+          body: JSON.stringify(payload),
         });
         lineResult = res.ok ? "sent" : "failed";
       } catch { lineResult = "failed"; }

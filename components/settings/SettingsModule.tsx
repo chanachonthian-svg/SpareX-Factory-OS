@@ -589,7 +589,7 @@ function NotificationsSection() {
             <span className="flex items-center gap-1"><Mail size={12} className="text-white/40" /> Email <b style={{ color: chLabel(testRes.email).tone }}>{L(chLabel(testRes.email))}</b></span>
             <span className="flex items-center gap-1"><MessageSquare size={12} className="text-white/40" /> LINE <b style={{ color: chLabel(testRes.line).tone }}>{L(chLabel(testRes.line))}</b></span>
             {testRes.line === "not_configured" ? (
-              <span className="w-full text-[11px] text-white/40">{L({ en: "LINE needs a channel token — give us your LINE Official Account access token + group ID to switch it on.", th: "LINE ต้องใช้ token — ส่ง LINE OA access token + group ID มาให้เราตั้งค่าบนเซิร์ฟเวอร์เพื่อเปิดใช้งานจริง" })}</span>
+              <span className="w-full text-[11px] text-white/40">{L({ en: "LINE just needs a Messaging API channel token — run deploy/setup-line.sh on the server. It broadcasts to everyone who added your LINE Official Account (no group ID needed).", th: "LINE ต้องการแค่ Messaging API token — รัน deploy/setup-line.sh บนเซิร์ฟเวอร์ จะ broadcast หาทุกคนที่แอด LINE OA (ไม่ต้องหา group ID)" })}</span>
             ) : null}
           </div>
         ) : null}
