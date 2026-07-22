@@ -4,9 +4,10 @@ import { useState, useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   Shield, ShieldOff, Search, Factory, Zap, RotateCcw, Coins, Sparkles, Bell,
-  Users, ShieldCheck, Mail, MessageSquare, Smartphone, MonitorSmartphone, Check, Clock,
-  Building2, Upload, Trash2, FileText, Cable, ExternalLink, CircleDot, Send, Loader2,
+  Users, ShieldCheck, Mail, MessageSquare, Check, Clock,
+  Building2, Upload, Trash2, FileText, Cable, ExternalLink, CircleDot, Send, Loader2, Plus, X, QrCode,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { assets, STATUS_COLOR, STATUS_LABEL, type Asset } from "@/lib/factory";
 import { loadLayout, toAssets } from "@/lib/twin-builder";
 import { notifyAutonomyChanged, useAiAutoSummary } from "@/lib/autonomy";
@@ -519,6 +520,26 @@ function NotificationsSection() {
   });
   const upd = (patch: Partial<typeof s>) => setS((p) => ({ ...p, ...patch }));
 
+  // email recipient list (stored comma-joined in emailAddr for the API)
+  const [newEmail, setNewEmail] = useState("");
+  const emails = s.emailAddr.split(/[,;\n]+/).map((e) => e.trim()).filter(Boolean);
+  const validEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+  const addEmail = () => {
+    const e = newEmail.trim().replace(/,$/, "");
+    if (!e || !validEmail(e) || emails.includes(e)) { setNewEmail(""); return; }
+    upd({ emailAddr: [...emails, e].join(", ") });
+    setNewEmail("");
+  };
+  const removeEmail = (e: string) => upd({ emailAddr: emails.filter((x) => x !== e).join(", ") });
+
+  // LINE add-friend URL → QR the customer's team scans to receive broadcasts
+  const lineUrl = (() => {
+    const v = s.lineId.trim();
+    if (/^https?:\/\//.test(v)) return v;
+    const id = v.startsWith("@") ? v : `@${v}`;
+    return `https://line.me/R/ti/p/${encodeURIComponent(id)}`;
+  })();
+
   // send a real test through the configured channels (email works now; LINE
   // once the server has a channel token) so the customer can verify their setup
   const [testing, setTesting] = useState(false);
@@ -546,17 +567,6 @@ function NotificationsSection() {
     setTesting(false);
   };
 
-  const channel = (on: boolean, key: any, icon: any, name: string, right: ReactNode) => {
-    const Icon = icon;
-    return (
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/8 bg-white/[0.02] p-3">
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/5 text-white/60"><Icon size={15} /></span>
-        <span className="text-sm font-medium text-white/85">{name}</span>
-        <div className="ml-auto flex items-center gap-3">{on ? right : null}<Toggle on={on} onClick={() => upd({ [key]: !on } as any)} /></div>
-      </div>
-    );
-  };
-  const smallInput = (v: string, on: (x: string) => void, ph: string) => <input value={v} onChange={(e) => on(e.target.value)} placeholder={ph} className="w-44 rounded-md border border-white/10 bg-white/[0.02] px-2 py-1 text-xs text-white/80 placeholder:text-white/25 focus:outline-none" />;
   const alertRow = (on: boolean, key: any, label: string, right?: ReactNode) => (
     <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/8 bg-white/[0.02] p-3">
       <Bell size={15} className={cn("shrink-0", on ? "text-brand-300" : "text-white/30")} />
@@ -578,23 +588,68 @@ function NotificationsSection() {
           </button>
         }
       >
-        <div className="space-y-3">
-          {channel(s.email, "email", Mail, "Email", (
-            <input
-              value={s.emailAddr}
-              onChange={(e) => upd({ emailAddr: e.target.value })}
-              placeholder="name@company.com, another@company.com"
-              className="w-72 max-w-[46vw] rounded-md border border-white/10 bg-white/[0.02] px-2 py-1 text-xs text-white/80 placeholder:text-white/25 focus:outline-none"
-            />
-          ))}
-          {channel(s.line, "line", MessageSquare, "LINE", smallInput(s.lineId, (x) => upd({ lineId: x }), "@line-oa"))}
-          {channel(s.push, "push", MonitorSmartphone, tr("Browser push"), null)}
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* ── Email box — add as many recipients as you want ── */}
+          <div className={cn("rounded-2xl border p-4 transition", s.email ? "border-white/12 bg-white/[0.02]" : "border-white/8 bg-white/[0.01] opacity-70")}>
+            <div className="flex items-center gap-2.5">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/5 text-white/60"><Mail size={15} /></span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-white/90">Email</p>
+                <p className="text-[11px] text-white/40">{L({ en: "Everyone in the list gets the alert", th: "ทุกอีเมลในลิสต์จะได้รับแจ้งเตือน" })}</p>
+              </div>
+              <Toggle on={s.email} onClick={() => upd({ email: !s.email })} />
+            </div>
+            {s.email ? (
+              <div className="mt-3.5 space-y-2">
+                {emails.length ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {emails.map((e) => (
+                      <span key={e} className="flex items-center gap-1.5 rounded-lg border border-white/12 bg-white/[0.04] py-1 pl-2.5 pr-1.5 text-[12px] text-white/85">
+                        {e}
+                        <button onClick={() => removeEmail(e)} aria-label={`ลบ ${e}`} className="grid h-4 w-4 place-items-center rounded text-white/40 transition hover:bg-white/10 hover:text-rose-300"><X size={11} /></button>
+                      </span>
+                    ))}
+                  </div>
+                ) : <p className="text-[11.5px] text-white/35">{L({ en: "No recipients yet — add one below.", th: "ยังไม่มีอีเมล — เพิ่มด้านล่าง" })}</p>}
+                <div className="flex gap-1.5">
+                  <input
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addEmail(); } }}
+                    placeholder="name@company.com"
+                    className="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/[0.02] px-2.5 py-1.5 text-[13px] text-white/85 placeholder:text-white/25 focus:border-brand-400/50 focus:outline-none"
+                  />
+                  <button onClick={addEmail} disabled={!validEmail(newEmail.trim())} className="flex items-center gap-1 rounded-lg border border-brand-400/30 bg-brand-400/[0.08] px-3 text-[12.5px] font-medium text-brand-200 transition hover:bg-brand-400/[0.15] disabled:opacity-40"><Plus size={13} /> {L({ en: "Add", th: "เพิ่ม" })}</button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          {/* ── LINE box — scan the QR to add the OA and receive alerts ── */}
+          <div className={cn("rounded-2xl border p-4 transition", s.line ? "border-white/12 bg-white/[0.02]" : "border-white/8 bg-white/[0.01] opacity-70")}>
+            <div className="flex items-center gap-2.5">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/5 text-white/60"><MessageSquare size={15} /></span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-white/90">LINE</p>
+                <p className="text-[11px] text-white/40">{L({ en: "Scan to add — everyone who adds gets alerts", th: "สแกนเพื่อแอด — ทุกคนที่แอดจะได้รับแจ้งเตือน" })}</p>
+              </div>
+              <Toggle on={s.line} onClick={() => upd({ line: !s.line })} />
+            </div>
+            {s.line ? (
+              <div className="mt-3.5 flex flex-col items-center gap-3 sm:flex-row sm:items-start">
+                <div className="shrink-0 rounded-xl bg-white p-2.5">
+                  <QRCodeSVG value={lineUrl} size={116} level="M" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-1.5 text-[12px] font-medium text-white/70"><QrCode size={13} /> {L({ en: "Add the LINE Official Account", th: "แอด LINE Official Account" })}</p>
+                  <p className="mt-1 text-[11.5px] leading-relaxed text-white/45">{L({ en: "Open LINE → scan this QR → Add friend. Everyone on the team who adds it receives the alerts.", th: "เปิด LINE → สแกน QR นี้ → กดเพิ่มเพื่อน · ทีมงานคนไหนแอดก็จะได้รับแจ้งเตือน" })}</p>
+                  <label className="mt-2.5 block text-[10.5px] uppercase tracking-wider text-white/40">{L({ en: "OA ID / link", th: "ไอดี / ลิงก์ OA" })}</label>
+                  <input value={s.lineId} onChange={(e) => upd({ lineId: e.target.value })} placeholder="@your-oa หรือ https://lin.ee/xxxx" className="mt-1 w-full rounded-lg border border-white/10 bg-white/[0.02] px-2.5 py-1.5 text-[12.5px] text-white/85 placeholder:text-white/25 focus:border-brand-400/50 focus:outline-none" />
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
-        {s.email ? (
-          <p className="mt-2.5 text-[11px] text-white/40">
-            {L({ en: "Multiple emails? Separate them with commas — every address gets the alert.", th: "ใส่ได้หลายอีเมล — คั่นด้วยจุลภาค (,) ทุกอีเมลจะได้รับแจ้งเตือน" })}
-          </p>
-        ) : null}
         {testRes ? (
           <div className="mt-3 flex flex-wrap gap-2 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2.5 text-[12px]">
             <span className="text-white/50">{L({ en: "Test result:", th: "ผลการทดสอบ:" })}</span>
