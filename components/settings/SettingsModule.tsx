@@ -5,11 +5,12 @@ import { createPortal } from "react-dom";
 import {
   Shield, ShieldOff, Search, Factory, Zap, RotateCcw, Coins, Sparkles, Bell,
   Users, ShieldCheck, Mail, MessageSquare, Smartphone, MonitorSmartphone, Check, Clock,
-  Building2, Upload, Trash2, FileText, Cable, ExternalLink, CircleDot,
+  Building2, Upload, Trash2, FileText, Cable, ExternalLink, CircleDot, Send, Loader2,
 } from "lucide-react";
 import { assets, STATUS_COLOR, STATUS_LABEL, type Asset } from "@/lib/factory";
 import { loadLayout, toAssets } from "@/lib/twin-builder";
 import { notifyAutonomyChanged, useAiAutoSummary } from "@/lib/autonomy";
+import { publicAsset } from "@/lib/paths";
 import { tariff } from "@/lib/energy";
 import { useBrand, setBrand } from "@/lib/brand";
 import { useI18n } from "@/lib/i18n";
@@ -517,6 +518,34 @@ function NotificationsSection() {
     esc: true, escMin: 15, escFirst: "Somchai P. (Engineer)", escTo: "Chanachon T. (Admin)",
   });
   const upd = (patch: Partial<typeof s>) => setS((p) => ({ ...p, ...patch }));
+
+  // send a real test through the configured channels (email works now; LINE
+  // once the server has a channel token) so the customer can verify their setup
+  const [testing, setTesting] = useState(false);
+  const [testRes, setTestRes] = useState<{ email: string; line: string } | null>(null);
+  const chLabel = (r: string) => {
+    const map: Record<string, { en: string; th: string; tone: string }> = {
+      sent: { en: "sent ✓", th: "ส่งแล้ว ✓", tone: "#34d399" },
+      failed: { en: "failed", th: "ส่งไม่สำเร็จ", tone: "#f43f5e" },
+      not_configured: { en: "not set up on server", th: "ยังไม่ได้ตั้งค่าบนเซิร์ฟเวอร์", tone: "#f59e0b" },
+      bad_address: { en: "invalid address", th: "อีเมลไม่ถูกต้อง", tone: "#f43f5e" },
+      skipped: { en: "off", th: "ปิดอยู่", tone: "#8b93a7" },
+    };
+    return map[r] ?? map.skipped;
+  };
+  const sendTest = async () => {
+    setTesting(true); setTestRes(null);
+    try {
+      const r = await fetch(publicAsset("/api/notify"), {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ test: true, email: s.emailAddr, emailOn: s.email, lineOn: s.line, lineId: s.lineId }),
+      });
+      if (r.status === 429) { setTestRes({ email: "failed", line: "failed" }); }
+      else { const d = await r.json(); setTestRes({ email: d.email, line: d.line }); }
+    } catch { setTestRes({ email: "failed", line: "failed" }); }
+    setTesting(false);
+  };
+
   const channel = (on: boolean, key: any, icon: any, name: string, right: ReactNode) => {
     const Icon = icon;
     return (
@@ -539,12 +568,31 @@ function NotificationsSection() {
 
   return (
     <div className="space-y-6">
-      <Card icon={Bell} title={tr("Notification Channels")} subtitle={tr("Where alerts are delivered.")}>
+      <Card
+        icon={Bell}
+        title={tr("Notification Channels")}
+        subtitle={tr("Where alerts are delivered.")}
+        extra={
+          <button onClick={sendTest} disabled={testing || (!s.email && !s.line)} className="flex items-center gap-1.5 rounded-lg border border-brand-400/30 bg-brand-400/[0.08] px-3 py-1.5 text-xs font-medium text-brand-200 transition hover:bg-brand-400/[0.15] disabled:opacity-50">
+            {testing ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />} {L({ en: "Send a test", th: "ส่งข้อความทดสอบ" })}
+          </button>
+        }
+      >
         <div className="space-y-3">
           {channel(s.email, "email", Mail, "Email", smallInput(s.emailAddr, (x) => upd({ emailAddr: x }), "name@company.com"))}
           {channel(s.line, "line", MessageSquare, "LINE", smallInput(s.lineId, (x) => upd({ lineId: x }), "@line-oa"))}
           {channel(s.push, "push", MonitorSmartphone, tr("Browser push"), null)}
         </div>
+        {testRes ? (
+          <div className="mt-3 flex flex-wrap gap-2 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2.5 text-[12px]">
+            <span className="text-white/50">{L({ en: "Test result:", th: "ผลการทดสอบ:" })}</span>
+            <span className="flex items-center gap-1"><Mail size={12} className="text-white/40" /> Email <b style={{ color: chLabel(testRes.email).tone }}>{L(chLabel(testRes.email))}</b></span>
+            <span className="flex items-center gap-1"><MessageSquare size={12} className="text-white/40" /> LINE <b style={{ color: chLabel(testRes.line).tone }}>{L(chLabel(testRes.line))}</b></span>
+            {testRes.line === "not_configured" ? (
+              <span className="w-full text-[11px] text-white/40">{L({ en: "LINE needs a channel token — give us your LINE Official Account access token + group ID to switch it on.", th: "LINE ต้องใช้ token — ส่ง LINE OA access token + group ID มาให้เราตั้งค่าบนเซิร์ฟเวอร์เพื่อเปิดใช้งานจริง" })}</span>
+            ) : null}
+          </div>
+        ) : null}
       </Card>
 
       <Card icon={Bell} title={tr("Alert Me About")} subtitle={tr("Which events trigger a notification.")}>
