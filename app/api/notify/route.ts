@@ -28,7 +28,10 @@ export async function POST(req: Request) {
   try { b = await req.json(); } catch { /* validated below */ }
 
   const test = b.test === true;
-  const email = clean(b.email, 160);
+  // accept several recipients separated by comma / semicolon / newline
+  const emailList = clean(b.email, 600)
+    .split(/[,;\n]+/).map((e) => e.trim()).filter(Boolean).filter(isEmail)
+    .slice(0, 20);
   const emailOn = b.emailOn !== false;
   const lineOn = b.lineOn !== false;
   const subject = clean(b.subject, 160) || (test ? "🏭 FactoryOS · ทดสอบการแจ้งเตือน" : "🏭 FactoryOS · แจ้งเตือน");
@@ -39,7 +42,7 @@ export async function POST(req: Request) {
   // ── Email (SMTP) ──
   let emailResult: "sent" | "skipped" | "failed" | "not_configured" | "bad_address" = "skipped";
   if (emailOn) {
-    if (!isEmail(email)) emailResult = "bad_address";
+    if (!emailList.length) emailResult = "bad_address";
     else if (!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)) emailResult = "not_configured";
     else {
       try {
@@ -50,7 +53,7 @@ export async function POST(req: Request) {
         });
         await tx.sendMail({
           from: process.env.SMTP_FROM || process.env.SMTP_USER,
-          to: email,
+          to: emailList.join(", "),
           subject,
           text: body,
         });

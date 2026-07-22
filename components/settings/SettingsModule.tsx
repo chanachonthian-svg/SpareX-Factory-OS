@@ -579,10 +579,22 @@ function NotificationsSection() {
         }
       >
         <div className="space-y-3">
-          {channel(s.email, "email", Mail, "Email", smallInput(s.emailAddr, (x) => upd({ emailAddr: x }), "name@company.com"))}
+          {channel(s.email, "email", Mail, "Email", (
+            <input
+              value={s.emailAddr}
+              onChange={(e) => upd({ emailAddr: e.target.value })}
+              placeholder="name@company.com, another@company.com"
+              className="w-72 max-w-[46vw] rounded-md border border-white/10 bg-white/[0.02] px-2 py-1 text-xs text-white/80 placeholder:text-white/25 focus:outline-none"
+            />
+          ))}
           {channel(s.line, "line", MessageSquare, "LINE", smallInput(s.lineId, (x) => upd({ lineId: x }), "@line-oa"))}
           {channel(s.push, "push", MonitorSmartphone, tr("Browser push"), null)}
         </div>
+        {s.email ? (
+          <p className="mt-2.5 text-[11px] text-white/40">
+            {L({ en: "Multiple emails? Separate them with commas — every address gets the alert.", th: "ใส่ได้หลายอีเมล — คั่นด้วยจุลภาค (,) ทุกอีเมลจะได้รับแจ้งเตือน" })}
+          </p>
+        ) : null}
         {testRes ? (
           <div className="mt-3 flex flex-wrap gap-2 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2.5 text-[12px]">
             <span className="text-white/50">{L({ en: "Test result:", th: "ผลการทดสอบ:" })}</span>
