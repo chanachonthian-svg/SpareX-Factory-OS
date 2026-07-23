@@ -12,7 +12,7 @@ import { assets, STATUS_COLOR, STATUS_LABEL, type Asset } from "@/lib/factory";
 import { loadLayout, toAssets } from "@/lib/twin-builder";
 import { notifyAutonomyChanged, useAiAutoSummary } from "@/lib/autonomy";
 import { publicAsset } from "@/lib/paths";
-import { resolvePlant, tagVal, type ConnectDevice } from "@/lib/connect-adapter";
+import { resolvePlant, assetsWithLive, type ConnectDevice } from "@/lib/connect-adapter";
 import { evaluateRules, ruleById } from "@/lib/rules";
 import { tariff } from "@/lib/energy";
 import { useBrand, setBrand } from "@/lib/brand";
@@ -122,9 +122,17 @@ function ConnectSection() {
   }, []);
   const liveDevices = feed?.devices ?? [];
   const resolved = feed?.live ? resolvePlant(liveDevices, map) : null;
-  // rule engine on the REAL plant reading — power / power-quality rules for module 1
+  // rule engine on REAL data: meter → plant power/PQ rules always; per-machine
+  // rules (vibration/temp) only for machines that actually have a live device
+  const liveAssets = feed?.live ? assetsWithLive(assets, liveDevices, map) : assets;
+  const liveMachineNames = new Set(machines.filter((m) => map[m.id]).map((m) => m.name));
   const liveFindings = resolved?.live
-    ? evaluateRules(assets, resolved.plant).filter((f) => { const r = ruleById(f.ruleId); return r ? r.category === "power" || r.category === "power-quality" : false; })
+    ? evaluateRules(liveAssets, resolved.plant).filter((f) => {
+        const r = ruleById(f.ruleId);
+        if (!r) return false;
+        if (r.category === "power" || r.category === "power-quality") return true;
+        return liveMachineNames.has(f.scope);
+      })
     : [];
 
   const okDevices = feed?.live ? liveDevices.filter((d) => d.online !== false).length : CONNECT_DEVICES.filter((d) => d.ok).length;
@@ -147,10 +155,11 @@ function ConnectSection() {
               </div>
               <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">{L({ en: "LIVE", th: "ข้อมูลจริง" })}</span>
             </div>
-            <div className="mt-3 grid grid-cols-3 gap-3">
+            <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
               {[
                 { label: "Power factor", value: resolved.plant.pf.toFixed(2), unit: "" },
                 { label: L({ en: "Demand now", th: "ดีมานด์ขณะนี้" }), value: resolved.plant.demandKw.toLocaleString(), unit: "kW" },
+                ...(resolved.plant.thdV != null ? [{ label: "THD voltage", value: resolved.plant.thdV.toFixed(1), unit: "%" }] : [{ label: L({ en: "Contract", th: "สัญญา" }), value: resolved.plant.contractKw.toLocaleString(), unit: "kW" }]),
                 { label: L({ en: "Contract", th: "สัญญา" }), value: resolved.plant.contractKw.toLocaleString(), unit: "kW" },
               ].map((s) => (
                 <div key={s.label} className="rounded-xl border border-white/8 bg-white/[0.02] p-3">

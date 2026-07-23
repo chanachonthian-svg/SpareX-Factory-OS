@@ -59,8 +59,14 @@ export function plantFromDevices(
   const pf = tagVal(meter, "power_factor", "pf");
   const kw = tagVal(meter, "active_power_total", "active_power", "kw", "total_power");
   if (pf === undefined || kw === undefined) return null;
+  const thdV = tagVal(meter, "thd_voltage", "voltage_thd", "thd_v", "thdv", "vthd");
+  const thdI = tagVal(meter, "thd_current", "current_thd", "thd_i", "thdi", "ithd");
   return {
-    plant: { pf: Math.round(pf * 100) / 100, demandKw: Math.round(kw), contractKw },
+    plant: {
+      pf: Math.round(pf * 100) / 100, demandKw: Math.round(kw), contractKw,
+      thdV: thdV != null ? Math.round(thdV * 10) / 10 : undefined,
+      thdI: thdI != null ? Math.round(thdI * 10) / 10 : undefined,
+    },
     meterId: meter.device,
   };
 }
@@ -78,6 +84,7 @@ export function assetsWithLive(
     if (!dev) return a;
     const kw = tagVal(dev, "active_power_total", "active_power", "kw", "total_power");
     const temp = tagVal(dev, "temperature", "temp", "winding_temp", "bearing_temp");
+    const vib = tagVal(dev, "vibration", "velocity_rms", "vib", "vrms");
     const good = dev.oee?.good, reject = dev.oee?.reject;
     const oee = good != null && reject != null && good + reject > 0
       ? Math.round((good / (good + reject)) * 100)
@@ -86,6 +93,7 @@ export function assetsWithLive(
       ...a,
       powerKw: kw != null ? Math.round(kw * 10) / 10 : a.powerKw,
       tempC: temp != null ? Math.round(temp) : a.tempC,
+      vibration: vib != null ? Math.round(vib * 10) / 10 : a.vibration,
       oee: oee != null ? oee : a.oee,
     };
   });

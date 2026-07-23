@@ -21,8 +21,8 @@ export type RuleCategory = "vibration" | "thermal" | "power" | "power-quality" |
 
 /** current plant-level readings the per-asset registry doesn't hold.
  *  Demo defaults — replaced by the SpareX Connect feed (see Settings → Data source). */
-export type PlantReading = { pf: number; demandKw: number; contractKw: number };
-export const DEMO_PLANT: PlantReading = { pf: 0.83, demandKw: 2760, contractKw: 3000 };
+export type PlantReading = { pf: number; demandKw: number; contractKw: number; thdV?: number; thdI?: number };
+export const DEMO_PLANT: PlantReading = { pf: 0.83, demandKw: 2760, contractKw: 3000, thdV: 3.1, thdI: 4.4 };
 
 /** thresholds an engineer may tune — mirrors factoryos:automation in Settings */
 export type RuleConfig = {
@@ -176,6 +176,29 @@ export const ENGINEERING_RULES: EngineeringRule[] = [
         scope: "Plant-wide · main meter", value: `${p.demandKw.toLocaleString()} kW`, limit: `${Math.round(alertKw).toLocaleString()} kW (${cfg.peakPct}%)`,
         // MEA demand charge ≈ 132 ฿/kW·month; over-contract exposure is the penalty
         bahtAtRisk: crit ? round10(overContract * 132 * 12 + 180000) : round10((p.demandKw - alertKw) * 132),
+      };
+    },
+  },
+  // ── 6b · Voltage harmonic distortion (IEEE 519) ──
+  {
+    id: "thd-ieee519",
+    category: "power-quality",
+    standard: "IEEE 519",
+    unit: "% THD",
+    name: { en: "Voltage harmonic distortion", th: "ฮาร์มอนิกแรงดัน (THD)" },
+    basis: {
+      en: "IEEE 519 caps voltage THD at 5% (≤69 kV). Excess overheats transformers and motors and trips sensitive electronics.",
+      th: "IEEE 519 จำกัด THD แรงดันที่ 5% (≤69 kV) · เกินทำให้หม้อแปลง/มอเตอร์ร้อน และอุปกรณ์อิเล็กทรอนิกส์สะดุด",
+    },
+    check: { en: "Voltage THD above 5% (watch) or 8% (act now)", th: "THD แรงดันเกิน 5% (เฝ้าดู) หรือ 8% (ต้องจัดการ)" },
+    action: { en: "Trace harmonic sources; size a passive/active filter", th: "หาแหล่งฮาร์มอนิก · คำนวณติดฟิลเตอร์" },
+    perPlant: (p) => {
+      if (p.thdV == null || p.thdV <= 5) return null;
+      const crit = p.thdV > 8;
+      return {
+        ruleId: "thd-ieee519", severity: crit ? "critical" : "warning",
+        scope: "Plant-wide · main bus", value: `${p.thdV.toFixed(1)}% THDv`, limit: "5%",
+        bahtAtRisk: round10((p.thdV - 5) * 12000 + (crit ? 40000 : 0)),
       };
     },
   },
