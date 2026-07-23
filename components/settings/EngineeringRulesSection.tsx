@@ -3,13 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity, Thermometer, ShieldAlert, Gauge, Zap, Waves, BookOpen, CircleDot, ArrowRight,
+  Send, Loader2, Check,
 } from "lucide-react";
 import {
   ENGINEERING_RULES, evaluateRules, findingsByRule, DEFAULT_CONFIG, DEMO_PLANT,
   type RuleCategory, type RuleConfig, type Severity,
 } from "@/lib/rules";
+import { dispatchFindings } from "@/lib/rules-dispatch";
 import { assets } from "@/lib/factory";
 import { useI18n } from "@/lib/i18n";
+import { publicAsset } from "@/lib/paths";
 import { cn } from "@/lib/utils";
 
 const CAT_ICON: Record<RuleCategory, typeof Activity> = {
@@ -45,6 +48,33 @@ export function EngineeringRulesSection() {
   const totalBaht = findings.reduce((s, f) => s + f.bahtAtRisk, 0);
   const critCount = findings.filter((f) => f.severity === "critical").length;
 
+  // SpareX-triggered: turn firing rules into customer outcomes (WO + alerts +
+  // a summary email/LINE). The rule stays backend; only the outcome crosses over.
+  const [dispatching, setDispatching] = useState(false);
+  const [dispatched, setDispatched] = useState<{ wos: number; alerts: number } | null>(null);
+  const runDispatch = async () => {
+    if (!findings.length) return;
+    setDispatching(true); setDispatched(null);
+    const now = new Date();
+    const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const res = dispatchFindings(findings, stamp);
+    // one summary email/LINE (not per-finding — avoid spamming the ops team)
+    try {
+      const notify = JSON.parse(localStorage.getItem("factoryos:notify") || "{}");
+      const top = findings.slice(0, 5).map((f) => `• ${f.scope}: ${f.value} (${f.limit})`).join("\n");
+      await fetch(publicAsset("/api/notify"), {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: notify.emailAddr, emailOn: notify.email !== false, lineOn: notify.line !== false,
+          subject: `🏭 FactoryOS · ${findings.length} engineering-rule findings · ฿${totalBaht.toLocaleString()} at risk`,
+          body: `${res.wos} work orders raised.\n\n${top}`,
+        }),
+      });
+    } catch { /* email is a bonus, WOs/alerts already landed */ }
+    setDispatched(res);
+    setDispatching(false);
+  };
+
   // firing rules first, worst severity first
   const worstOf = (id: string): number => {
     const fs = byRule.get(id) ?? [];
@@ -73,13 +103,28 @@ export function EngineeringRulesSection() {
         ))}
       </section>
 
-      <div className="flex items-center gap-2 text-[12px] text-white/45">
-        <BookOpen size={14} className="text-brand-300" />
-        {L({
-          en: "Each rule is grounded in an engineering standard or tariff, evaluated live against current readings. Tune thresholds in AI & automation and Notification setup.",
-          th: "ทุกกฎอ้างอิงมาตรฐานวิศวกรรมหรือค่าไฟจริง ประเมินกับค่าปัจจุบันแบบสด · ปรับเกณฑ์ได้ที่ AI & automation และตั้งค่าการแจ้งเตือน",
-        })}
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="flex flex-1 items-center gap-2 text-[12px] text-white/45">
+          <BookOpen size={14} className="text-brand-300" />
+          {L({
+            en: "Each rule is grounded in an engineering standard or tariff, evaluated live against current readings.",
+            th: "ทุกกฎอ้างอิงมาตรฐานวิศวกรรมหรือค่าไฟจริง ประเมินกับค่าปัจจุบันแบบสด",
+          })}
+        </p>
+        {/* SpareX action — push the outcomes (not the rules) to the customer */}
+        <button onClick={runDispatch} disabled={dispatching || !findings.length} className="btn-glow shrink-0 px-4 py-2 text-[12.5px] disabled:opacity-50">
+          {dispatching ? <><Loader2 size={13} className="animate-spin" /> {L({ en: "Dispatching…", th: "กำลังส่ง…" })}</> : <><Send size={13} /> {L({ en: `Dispatch ${findings.length} findings to customer`, th: `ส่ง ${findings.length} รายการให้ลูกค้า` })}</>}
+        </button>
       </div>
+      {dispatched ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-400/[0.06] px-4 py-2.5 text-[12.5px] text-emerald-200">
+          <Check size={14} />
+          {L({
+            en: `Sent to customer: ${dispatched.wos} work orders + ${dispatched.alerts} alerts (each citing its standard) + summary email/LINE. They appear in Work Order Center & Notification Center.`,
+            th: `ส่งให้ลูกค้าแล้ว: ใบสั่งงาน ${dispatched.wos} ใบ + แจ้งเตือน ${dispatched.alerts} รายการ (อ้างมาตรฐานทุกอัน) + สรุป Email/LINE · ไปโผล่ที่ Work Order Center และ Notification Center`,
+          })}
+        </div>
+      ) : null}
 
       {/* rule catalog */}
       <div className="space-y-3">
