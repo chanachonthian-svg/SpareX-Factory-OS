@@ -55,20 +55,10 @@ export const tariff = {
   demandCharge: 132.93, // ฿/kW
 };
 
-/** 6-month bill history (฿). The last entry is the current month-to-date (MTD). */
-export const monthlyBills: { label: string; onPeak: number; offPeak: number; demand: number; penalty: number; mtd?: boolean }[] = [
-  { label: "Jan", onPeak: 641000, offPeak: 233000, demand: 398790, penalty: 0 },
-  { label: "Feb", onPeak: 612000, offPeak: 221000, demand: 398790, penalty: 15200 },
-  { label: "Mar", onPeak: 658000, offPeak: 241000, demand: 398790, penalty: 46600 },
-  { label: "Apr", onPeak: 623000, offPeak: 227000, demand: 398790, penalty: 0 },
-  { label: "May", onPeak: 631000, offPeak: 225000, demand: 398790, penalty: 19940 },
-  { label: "MTD", onPeak: 614817, offPeak: 226773, demand: 398790, penalty: 29909, mtd: true },
-];
-
-/** Units produced per month (MES output), aligned index-for-index to monthlyBills.
- *  Lets Energy Intensity derive kWh/unit and ฿/unit straight from the metered bill —
- *  the core efficiency question: are we spending more energy per thing we make? */
-export const monthlyUnits = [199_000, 192_000, 190_000, 196_000, 191_000, 187_000];
+/** 12-month bill history + MES output, derived index-for-index from one coherent
+ *  factory-year model (lib/plant-year) so the ฿ bill, the kWh, the peak demand and
+ *  the carbon all reconcile month-to-month. Last entry = current month-to-date. */
+export { monthlyBills, monthlyUnits } from "./plant-year";
 
 /** Loads that can be time-shifted into the cheap off-peak window. Sourced from the same asset
  *  registry the Settings screen manages (single source of truth) — only genuinely deferrable

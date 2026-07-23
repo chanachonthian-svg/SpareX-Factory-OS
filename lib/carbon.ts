@@ -25,18 +25,9 @@ export const sparks = {
   intensity: [70, 68, 67, 64, 60, 57, 55, 53, 51, 50, 49, 48],
 };
 
-/** emissions trend — Scope 1/2/3 by month (tCO₂e) */
-export const emissionsTrend = [
-  { t: "Jan", scope1: 340, scope2: 620, scope3: 1290 },
-  { t: "Feb", scope1: 352, scope2: 640, scope3: 1305 },
-  { t: "Mar", scope1: 348, scope2: 636, scope3: 1288 },
-  { t: "Apr", scope1: 334, scope2: 606, scope3: 1260 },
-  { t: "May", scope1: 300, scope2: 566, scope3: 1235 },
-  { t: "Jun", scope1: 276, scope2: 512, scope3: 1210 },
-  { t: "Jul", scope1: 258, scope2: 470, scope3: 1180 },
-  { t: "Aug", scope1: 244, scope2: 452, scope3: 1165 },
-  { t: "Sep", scope1: 250, scope2: 460, scope3: 1170 },
-];
+/** emissions trend — Scope 1/2/3 by month (tCO₂e), 12 months from the one
+ *  factory-year model (lib/plant-year) so Scope-2 tracks the metered kWh exactly. */
+export { emissionsTrend } from "./plant-year";
 
 /** emissions by source — Scope 1 & 2 (MTD, tCO₂e) */
 export const bySource: { name: CZ; value: number; scope: 1 | 2 }[] = [
