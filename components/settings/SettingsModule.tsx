@@ -5,10 +5,9 @@ import { createPortal } from "react-dom";
 import {
   Shield, ShieldOff, Search, Factory, Zap, RotateCcw, Coins, Sparkles, Bell,
   Users, ShieldCheck, Mail, MessageSquare, Check, Clock,
-  Building2, Upload, Trash2, FileText, Cable, ExternalLink, CircleDot, Send, Loader2, Plus, X, QrCode, BookOpen,
+  Building2, Upload, Trash2, FileText, Cable, ExternalLink, CircleDot, Send, Loader2, Plus, X, QrCode,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { EngineeringRulesSection } from "./EngineeringRulesSection";
 import { assets, STATUS_COLOR, STATUS_LABEL, type Asset } from "@/lib/factory";
 import { loadLayout, toAssets } from "@/lib/twin-builder";
 import { notifyAutonomyChanged, useAiAutoSummary } from "@/lib/autonomy";
@@ -872,7 +871,6 @@ const SECTIONS = [
   { k: "machines", icon: Shield, label: "Machines & assets" },
   { k: "tariff", icon: Coins, label: "Tariff & billing" },
   { k: "brand", icon: Building2, label: "Company & branding" },
-  { k: "rules", icon: BookOpen, label: "Engineering rules" },
   { k: "ai", icon: Sparkles, label: "AI & automation" },
   { k: "notify", icon: Bell, label: "Notification setup" },
   { k: "users", icon: Users, label: "Users & roles" },
@@ -907,7 +905,6 @@ export function SettingsModule() {
 
       <div className="min-w-0">
         {section === "connect" && <ConnectSection />}
-        {section === "rules" && <EngineeringRulesSection />}
         {section === "machines" && <CriticalitySection />}
         {section === "tariff" && <TariffSection />}
         {section === "brand" && <BrandingSection />}
