@@ -17,6 +17,7 @@ import { AskCopilot } from "@/components/os/AskCopilot";
 import { useTr } from "@/lib/autotranslate";
 import { useI18n } from "@/lib/i18n";
 import { formatTHB, formatCompact, openCopilot, cn } from "@/lib/utils";
+import { AiReasoningTrace } from "@/components/os/AiReasoningTrace";
 import {
   assets, buildings, countByStatus, countByCategory, predictedFailures,
   STATUS_COLOR, STATUS_LABEL, CATEGORY_LABEL,
@@ -667,6 +668,12 @@ export function AIInsightsView({ onAct }: { onAct?: () => void } = {}) {
   const th = locale === "th";
   const ranked = [...twinAiInsights].sort((a, b) => b.bahtOrder - a.bahtOrder);
   return (
+    <div className="space-y-4">
+      {/* glass-box: the engine's reasoning trace before the ranked findings */}
+      <AiReasoningTrace
+        categories={["vibration", "thermal", "reliability"]}
+        pointsLabel={{ en: "20 assets · vibration · temp · health · now", th: "20 สินทรัพย์ · การสั่น · อุณหภูมิ · สุขภาพ · ปัจจุบัน" }}
+      />
     <Panel
       title={th ? "เรื่องที่ AI พบ · เรียงตามเงิน" : "AI Findings · ranked by money"}
       sub={th ? "อ่านบนลงล่าง = ลำดับที่ควรลงมือ" : "Top to bottom = the order to act in"}
@@ -701,6 +708,7 @@ export function AIInsightsView({ onAct }: { onAct?: () => void } = {}) {
       </ul>
       <AskCopilot prompt="Summarize the most important things happening in the factory right now" className="btn-ghost mt-4 w-full justify-center py-2 text-sm">{tr("Ask the Copilot for the full picture")}</AskCopilot>
     </Panel>
+    </div>
   );
 }
 

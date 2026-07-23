@@ -19,6 +19,7 @@ import { createWorkOrder, useWorkOrders } from "@/lib/workorders";
 import { Sparkline } from "@/components/ui/Sparkline";
 import { cn, formatTHB } from "@/lib/utils";
 import { useAiAutoQw } from "@/lib/autonomy";
+import { AiReasoningTrace } from "@/components/os/AiReasoningTrace";
 
 type LZ = { en: string; th: string };
 
@@ -735,6 +736,11 @@ function AnalysisStep({ L, onAct }: { L: (o: LZ) => string; onAct: () => void })
 
   return (
     <div className="space-y-6">
+      {/* glass-box: the engine's reasoning trace before the curated analysis */}
+      <AiReasoningTrace
+        categories={["production", "vibration", "thermal"]}
+        pointsLabel={{ en: "OEE · line machines · vibration/temp · now", th: "OEE · เครื่องในไลน์ · การสั่น/อุณหภูมิ · ปัจจุบัน" }}
+      />
       <div className="grid gap-6 lg:grid-cols-[1.15fr_1fr]">
         <Panel title={L({ en: "AI Anomaly & Root Cause", th: "AI ตรวจจับผิดปกติ & หาสาเหตุ" })} sub={L({ en: "Ranked by money · evidence engineers can check", th: "เรียงตามเงิน · หลักฐานที่วิศวกรตรวจได้" })} icon={Sparkles}>
           <div className="space-y-3">
