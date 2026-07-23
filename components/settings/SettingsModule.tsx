@@ -12,6 +12,8 @@ import { assets, STATUS_COLOR, STATUS_LABEL, type Asset } from "@/lib/factory";
 import { loadLayout, toAssets } from "@/lib/twin-builder";
 import { notifyAutonomyChanged, useAiAutoSummary } from "@/lib/autonomy";
 import { publicAsset } from "@/lib/paths";
+import { resolvePlant, tagVal, type ConnectDevice } from "@/lib/connect-adapter";
+import { evaluateRules, ruleById } from "@/lib/rules";
 import { tariff } from "@/lib/energy";
 import { useBrand, setBrand } from "@/lib/brand";
 import { useI18n } from "@/lib/i18n";
@@ -109,13 +111,77 @@ function ConnectSection() {
     setMachines(list.map((a) => ({ id: a.id, name: a.name, type: a.type })));
   }, []);
 
-  const okDevices = CONNECT_DEVICES.filter((d) => d.ok).length;
+  // pull the real device feed from SpareX Connect (server proxy → /api/readings)
+  const [feed, setFeed] = useState<{ live: boolean; devices: ConnectDevice[]; reason?: string } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const pull = () => fetch(publicAsset("/api/readings")).then((r) => r.json()).then((d) => { if (alive) setFeed(d); }).catch(() => { if (alive) setFeed({ live: false, devices: [] }); });
+    pull();
+    const iv = setInterval(pull, 10000); // refresh every 10s
+    return () => { alive = false; clearInterval(iv); };
+  }, []);
+  const liveDevices = feed?.devices ?? [];
+  const resolved = feed?.live ? resolvePlant(liveDevices, map) : null;
+  // rule engine on the REAL plant reading — power / power-quality rules for module 1
+  const liveFindings = resolved?.live
+    ? evaluateRules(assets, resolved.plant).filter((f) => { const r = ruleById(f.ruleId); return r ? r.category === "power" || r.category === "power-quality" : false; })
+    : [];
+
+  const okDevices = feed?.live ? liveDevices.filter((d) => d.online !== false).length : CONNECT_DEVICES.filter((d) => d.ok).length;
+  const totalDev = feed?.live ? liveDevices.length : CONNECT_DEVICES.length;
   const mapped = machines.filter((m) => map[m.id]).length;
   const deviceUse = new Map<string, number>();
   Object.values(map).forEach((d) => deviceUse.set(d, (deviceUse.get(d) ?? 0) + 1));
 
   return (
     <div className="space-y-4">
+      {/* LIVE — the rule engine running on the real power meter (module 1) */}
+      {feed ? (
+        feed.live && resolved?.live ? (
+          <div className="panel border-emerald-400/25 p-5" style={{ background: "linear-gradient(180deg, rgba(52,211,153,0.08), transparent 82%)" }}>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="grid h-8 w-8 place-items-center rounded-lg border border-emerald-400/30 bg-emerald-400/10 text-emerald-300"><CircleDot size={15} className="animate-pulse" /></span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[14px] font-semibold text-white">{L({ en: "Live from a real power meter", th: "ข้อมูลจริงจากมิเตอร์" })}</p>
+                <p className="text-[11.5px] text-white/45">{L({ en: `Rule engine evaluating meter ${resolved.meterId} · ${liveDevices.length} device(s) online`, th: `กฎวิเคราะห์จากมิเตอร์ ${resolved.meterId} · ${liveDevices.length} อุปกรณ์ออนไลน์` })}</p>
+              </div>
+              <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">{L({ en: "LIVE", th: "ข้อมูลจริง" })}</span>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-3">
+              {[
+                { label: "Power factor", value: resolved.plant.pf.toFixed(2), unit: "" },
+                { label: L({ en: "Demand now", th: "ดีมานด์ขณะนี้" }), value: resolved.plant.demandKw.toLocaleString(), unit: "kW" },
+                { label: L({ en: "Contract", th: "สัญญา" }), value: resolved.plant.contractKw.toLocaleString(), unit: "kW" },
+              ].map((s) => (
+                <div key={s.label} className="rounded-xl border border-white/8 bg-white/[0.02] p-3">
+                  <p className="text-[10.5px] uppercase tracking-wider text-white/45">{s.label}</p>
+                  <p className="mt-1 tabular text-lg font-semibold text-white">{s.value}{s.unit ? <span className="ml-1 text-xs font-normal text-white/40">{s.unit}</span> : null}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 border-t border-white/8 pt-3">
+              <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-white/40">{L({ en: "Rules firing on live data", th: "กฎที่เข้าเงื่อนไขจากข้อมูลจริง" })}</p>
+              {liveFindings.length ? liveFindings.map((f, i) => {
+                const rule = ruleById(f.ruleId);
+                return (
+                  <div key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-white/8 bg-white/[0.02] px-3 py-2 text-[12px]">
+                    <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", f.severity === "critical" ? "bg-rose-400" : "bg-amber-400")} />
+                    <span className="min-w-[120px] flex-1 font-medium text-white/85">{f.scope}</span>
+                    <span className="rounded border border-brand-400/25 bg-brand-400/[0.08] px-1.5 py-0.5 font-mono text-[9.5px] text-brand-200">{rule?.standard}</span>
+                    <span className="tabular"><b className={f.severity === "critical" ? "text-rose-300" : "text-amber-300"}>{f.value}</b> <span className="text-white/35">vs {f.limit}</span></span>
+                    <span className="tabular font-semibold text-rose-300">฿{f.bahtAtRisk.toLocaleString()}</span>
+                  </div>
+                );
+              }) : <p className="text-[12px] text-emerald-300/80">{L({ en: "Meter within all limits — no rule firing.", th: "มิเตอร์อยู่ในเกณฑ์ — ไม่มีกฎเข้าเงื่อนไข" })}</p>}
+            </div>
+          </div>
+        ) : (
+          <div className="panel border-amber-400/20 p-3.5 text-[12px] text-amber-200/90">
+            ⚠ {L({ en: "No live data from Connect yet — showing simulated readings. Point a meter (or the Connect simulator) at Connect to go live.", th: "ยังไม่มีข้อมูลจริงจาก Connect — กำลังใช้ค่าจำลอง · ต่อมิเตอร์ (หรือ simulator ของ Connect) เข้า Connect เพื่อรับข้อมูลจริง" })}
+          </div>
+        )
+      ) : null}
+
       {/* link health */}
       <Card
         title={L({ en: "SpareX Connect link", th: "การเชื่อมต่อ SpareX Connect" })}
@@ -129,9 +195,9 @@ function ConnectSection() {
       >
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[
-            { label: L({ en: "Status", th: "สถานะ" }), value: L({ en: "Online", th: "ออนไลน์" }), tone: "#34d399", dot: true },
-            { label: L({ en: "Last data in", th: "ข้อมูลล่าสุดเข้า" }), value: L({ en: "moments ago", th: "เมื่อครู่" }), tone: "#e2e8f0" },
-            { label: L({ en: "Devices reporting", th: "อุปกรณ์ส่งปกติ" }), value: `${okDevices}/${CONNECT_DEVICES.length}`, tone: okDevices === CONNECT_DEVICES.length ? "#34d399" : "#f59e0b" },
+            { label: L({ en: "Status", th: "สถานะ" }), value: feed?.live ? L({ en: "Live", th: "รับข้อมูลจริง" }) : L({ en: "Simulated", th: "จำลอง" }), tone: feed?.live ? "#34d399" : "#f59e0b", dot: true },
+            { label: L({ en: "Last data in", th: "ข้อมูลล่าสุดเข้า" }), value: feed?.live ? L({ en: "moments ago", th: "เมื่อครู่" }) : "—", tone: "#e2e8f0" },
+            { label: L({ en: "Devices reporting", th: "อุปกรณ์ส่งปกติ" }), value: `${okDevices}/${totalDev}`, tone: okDevices === totalDev ? "#34d399" : "#f59e0b" },
             { label: L({ en: "Machines on real data", th: "เครื่องที่ใช้ข้อมูลจริง" }), value: `${mapped}/${machines.length}`, tone: mapped ? "#22d3ee" : "#8b93a7" },
           ].map((s) => (
             <div key={s.label} className="rounded-xl border border-white/8 bg-white/[0.02] p-3.5">
