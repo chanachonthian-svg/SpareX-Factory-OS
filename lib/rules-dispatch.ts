@@ -39,10 +39,12 @@ export function dispatchFindings(findings: Finding[], atStamp: string): { wos: n
       source: "maintenance",
       kind: "alert",
       title: { en: `${rule.name.en} · ${f.scope}`, th: `${rule.name.th} · ${f.scope}` },
-      // the standard reference IS the transparency the customer's engineers want
+      // the standard reference IS the transparency the customer's engineers want.
+      // Phrasing stays direction-neutral so it reads right whether the metric is
+      // over a limit (vibration/temp) or under a floor (OEE/PF/health).
       body: {
-        en: `${f.value} exceeds ${rule.standard} (limit ${f.limit}) — ฿${f.bahtAtRisk.toLocaleString()} at risk. Work order raised.`,
-        th: `${f.value} เกินเกณฑ์ ${rule.standard} (${f.limit}) · เสี่ยง ฿${f.bahtAtRisk.toLocaleString()} · ออกใบสั่งงานแล้ว`,
+        en: `${f.value} — breaches ${rule.standard} (threshold ${f.limit}). ฿${f.bahtAtRisk.toLocaleString()} at risk. Work order raised.`,
+        th: `${f.value} — เข้าเงื่อนไข ${rule.standard} (เกณฑ์ ${f.limit}) · เสี่ยง ฿${f.bahtAtRisk.toLocaleString()} · ออกใบสั่งงานแล้ว`,
       },
       at: atStamp,
       read: false,
