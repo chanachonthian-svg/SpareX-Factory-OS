@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Activity, ScrollText, Radar, ListOrdered, Check, Loader2, Sparkles } from "lucide-react";
-import { evaluateRules, ruleById, type RuleCategory, type Finding } from "@/lib/rules";
-import { assets } from "@/lib/factory";
+import { ruleById, type RuleCategory, type Finding } from "@/lib/rules";
+import { useLiveReadings } from "@/lib/use-readings";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -25,8 +25,10 @@ export function AiReasoningTrace({
   const { locale } = useI18n();
   const L = (o: LZ) => (locale === "th" ? o.th : o.en);
 
-  // findings from the real engine, scoped to this module's categories
-  const findings: Finding[] = evaluateRules().filter((f) => {
+  // real engine on LIVE device readings when SpareX Connect has them (demo
+  // registry otherwise) — scoped to this module's rule categories
+  const readings = useLiveReadings();
+  const findings: Finding[] = readings.findings.filter((f) => {
     const r = ruleById(f.ruleId);
     return r ? categories.includes(r.category) : false;
   });
@@ -41,7 +43,13 @@ export function AiReasoningTrace({
   }, []);
 
   const steps: { icon: typeof Activity; label: LZ; detail: LZ }[] = [
-    { icon: Activity, label: { en: "Read readings", th: "อ่านค่า" }, detail: pointsLabel },
+    {
+      icon: Activity,
+      label: { en: "Read readings", th: "อ่านค่า" },
+      detail: readings.live
+        ? { en: `${readings.devices.length} device(s) via SpareX Connect · now`, th: `${readings.devices.length} อุปกรณ์ผ่าน SpareX Connect · ปัจจุบัน` }
+        : pointsLabel,
+    },
     { icon: ScrollText, label: { en: "Compare against standards", th: "เทียบมาตรฐานวิศวกรรม" }, detail: { en: standards.join(" · ") || "—", th: standards.join(" · ") || "—" } },
     { icon: Radar, label: { en: "Detect deviations", th: "ตรวจจับที่ผิดเกณฑ์" }, detail: { en: `${findings.length} findings`, th: `พบ ${findings.length} เรื่อง` } },
     { icon: ListOrdered, label: { en: "Rank by ฿ at risk", th: "จัดอันดับตามเงินเสี่ยง" }, detail: { en: `฿${totalBaht.toLocaleString()} exposure`, th: `฿${totalBaht.toLocaleString()} ที่เสี่ยง` } },
@@ -52,9 +60,16 @@ export function AiReasoningTrace({
 
   return (
     <section className="panel p-5" style={{ background: "linear-gradient(180deg, rgba(34,211,238,0.08), transparent 82%)", borderColor: "rgba(34,211,238,0.28)" }}>
-      <div className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-wider text-cyan-300">
+      <div className="flex flex-wrap items-center gap-2.5 text-[11px] font-semibold uppercase tracking-wider text-cyan-300">
         <Sparkles size={14} /> {L({ en: "How the AI reached this", th: "AI วิเคราะห์ยังไงถึงได้ผลนี้" })}
         {!done ? <Loader2 size={12} className="animate-spin text-white/40" /> : null}
+        {/* never let simulated numbers read as measured ones */}
+        <span className={cn("rounded-full border px-2 py-0.5 text-[9.5px] font-medium normal-case tracking-normal",
+          readings.live ? "border-emerald-400/35 bg-emerald-400/10 text-emerald-300" : "border-white/15 bg-white/[0.03] text-white/45")}>
+          {readings.live
+            ? L({ en: `live · ${readings.devices.length} device(s)`, th: `ข้อมูลจริง · ${readings.devices.length} อุปกรณ์` })
+            : L({ en: "simulated data", th: "ข้อมูลจำลอง" })}
+        </span>
       </div>
 
       {/* the reasoning stages */}
