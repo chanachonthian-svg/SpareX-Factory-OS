@@ -27,6 +27,7 @@ import { AskCopilot } from "@/components/os/AskCopilot";
 import { createWorkOrder, useWorkOrders } from "@/lib/workorders";
 import { cn, formatTHB } from "@/lib/utils";
 import { useAiAutoQw } from "@/lib/autonomy";
+import { AiReasoningTrace } from "@/components/os/AiReasoningTrace";
 
 type LZ = { en: string; th: string };
 
@@ -1255,6 +1256,13 @@ function AnalysisStep({ L, onAct }: { L: (o: LZ) => string; onAct: () => void })
 
   return (
     <div className="space-y-6">
+      {/* glass-box: show the engine's reasoning (read → standards → detect → rank)
+          driven by the real rule engine, before the curated verdict below */}
+      <AiReasoningTrace
+        categories={["power", "power-quality"]}
+        pointsLabel={{ en: "Main loads · meters · PLC · now", th: "โหลดหลัก · มิเตอร์ · PLC · ปัจจุบัน" }}
+      />
+
       {/* Round-2 — verified fixes the M&V looped back for a re-check */}
       {recheck.length ? (
         <Panel title={L({ en: "Re-check — post-fix results below target", th: "ตรวจซ้ำ — ผลหลังแก้ไม่ถึงเป้า" })} sub={L({ en: "Verified work whose M&V flagged it back for another look", th: "งานที่ยืนยันแล้วแต่ M&V ตีกลับให้ดูซ้ำ" })} icon={AlertTriangle} color="#f59e0b" right={<span className="chip text-amber-300">{recheck.length} {L({ en: "looped back", th: "ตีกลับ" })}</span>}>
