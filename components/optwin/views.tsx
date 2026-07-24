@@ -10,6 +10,7 @@ import Link from "next/link";
 import { DigitalTwin } from "@/components/twin/DigitalTwin";
 import { TwinBuilder } from "@/components/twin/TwinBuilder";
 import { loadLayout, toAssets, toBuildings, poleOf, type TwinLayout } from "@/lib/twin-builder";
+import { useLiveReadings } from "@/lib/use-readings";
 import { ProcessFlow3D } from "@/components/optwin/ProcessFlow3D";
 import { KpiCard } from "@/components/os/KpiCard";
 import { HBars } from "@/components/os/charts";
@@ -151,6 +152,8 @@ export function MapView() {
   const [builderOpen, setBuilderOpen] = useState(false);
   useEffect(() => { setLayout(loadLayout()); }, []);
   const custom = layout?.active && layout.machines.length ? layout : null;
+  // live device readings overlay real kW/temp/vibration onto the twin
+  const readings = useLiveReadings();
   const statuses = mode === "replay" && !custom ? replayStatusesAt(t) : undefined;
 
   // view scope — isolate one Line/Area in the 3D (null = whole plant)
@@ -158,8 +161,10 @@ export function MapView() {
   const zonesList = custom
     ? custom.zones.map((z) => ({ id: z.uid, name: z.name }))
     : buildings.map((b) => ({ id: b.id, name: b.name }));
-  const twinAssets = custom
-    ? toAssets(custom).filter((a) => !viewZone || a.buildingId === viewZone)
+  // when Connect is feeding us, the twin renders the LIVE-overlaid assets
+  const baseTwinAssets = readings.live ? readings.assets : custom ? toAssets(custom) : null;
+  const twinAssets = baseTwinAssets
+    ? baseTwinAssets.filter((a) => !viewZone || a.buildingId === viewZone)
     : viewZone
       ? assets.filter((a) => a.buildingId === viewZone)
       : undefined;
@@ -182,6 +187,14 @@ export function MapView() {
               {th ? `ผังโรงงานของคุณ · ${toAssets(custom).length} เครื่อง · ${custom.zones.length} โซน` : `Your plant layout · ${toAssets(custom).length} machines · ${custom.zones.length} zones`}
             </span>
           ) : null}
+          {/* where the twin's numbers come from — never let simulated read as measured */}
+          <span className={cn("flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium",
+            readings.live ? "border-emerald-400/35 bg-emerald-400/10 text-emerald-300" : "border-white/12 bg-white/[0.03] text-white/45")}>
+            <Radio size={11} className={readings.live ? "animate-pulse" : undefined} />
+            {readings.live
+              ? (th ? `ข้อมูลจริง · ${readings.devices.length} อุปกรณ์` : `Live · ${readings.devices.length} devices`)
+              : (th ? "ข้อมูลจำลอง" : "Simulated")}
+          </span>
           <button
             onClick={() => setBuilderOpen(true)}
             className="flex items-center gap-1.5 rounded-lg border border-brand-400/30 bg-brand-400/[0.08] px-3 py-1.5 text-xs font-medium text-brand-200 transition hover:bg-brand-400/[0.15]"
